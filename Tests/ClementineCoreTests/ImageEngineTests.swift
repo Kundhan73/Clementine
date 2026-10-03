@@ -88,7 +88,8 @@ final class ImageEngineTests: XCTestCase {
         var skipped: [String] = []
         for source in sources {
             guard let input = try await fixture(source) else { skipped.append("\(source) fixture"); continue }
-            for target in ConversionMatrix.targets(for: source) {
+            for target in ConversionMatrix.targets(for: source)
+                where ConversionMatrix.engine(from: source, kind: .image, to: target) != .media {
                 let chip = WheelChip.format(target)
                 let item = InputItem.inspect(input)
                 guard Engines.isAvailable(chip, for: [item]) else {

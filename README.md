@@ -30,9 +30,9 @@ curl -fsSL https://raw.githubusercontent.com/Kundhan73/Clementine/main/scripts/i
 | Milestone | State |
 |---|---|
 | Spec and architecture | ✅ done |
-| 0.0 Build pipeline (GitHub Actions → Releases) | ⏳ |
-| 0.1 Shift-drag wheel + image conversions | ⏳ |
-| 0.2 All conversions (audio, video, documents, subtitles, archives) | ⏳ |
+| 0.0 Build pipeline (GitHub Actions → Releases) | ✅ done |
+| 0.1 Shift-drag wheel + image conversions | ✅ done |
+| 0.2 All conversions (audio, video, documents, subtitles, archives) | ✅ done (v0.2.0) |
 | 0.3 Instant and dialog tools | ⏳ |
 | 0.4 Image and PDF editors | ⏳ |
 | 0.5 Media editors | ⏳ |

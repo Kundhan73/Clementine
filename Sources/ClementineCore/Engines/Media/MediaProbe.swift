@@ -94,8 +94,15 @@ public enum MediaProbe {
 
     /// Parses `ffprobe -print_format json -show_format -show_streams`.
     public static func parse(_ data: Data) throws -> MediaInfo {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw JobFailure("Couldn't read the media information.")
+        var object = try? JSONSerialization.jsonObject(with: data)
+        if object == nil {
+            // Tags with invalid UTF-8 make the JSON unreadable: repair and retry.
+            let repaired = Data(String(decoding: data, as: UTF8.self).utf8)
+            object = try? JSONSerialization.jsonObject(with: repaired)
+        }
+        guard let root = object as? [String: Any] else {
+            throw JobFailure("Couldn't read the media information.",
+                             details: String(decoding: data.prefix(400), as: UTF8.self))
         }
         let format = root["format"] as? [String: Any] ?? [:]
         let streams = (root["streams"] as? [[String: Any]] ?? []).map(parseStream)

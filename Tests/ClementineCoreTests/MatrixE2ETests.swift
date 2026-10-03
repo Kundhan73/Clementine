@@ -58,7 +58,7 @@ final class MatrixE2ETests: XCTestCase {
         }
         print("::notice title=Matrix e2e::passed \(passed) of \(ConversionMatrix.pairs.count) pairs; " +
               "no fixture: \(fixtureSkips.joined(separator: ", ")); skipped: \(skipped.count)")
-        if !skipped.isEmpty { print("matrix skipped: \(skipped.joined(separator: ", "))") }
+        if !skipped.isEmpty { print("::notice title=Matrix skipped::\(skipped.joined(separator: ", "))") }
         for f in failures { print("::error title=Matrix pair failed::\(f.replacingOccurrences(of: "\n", with: " | "))") }
         XCTAssertTrue(failures.isEmpty, "\(failures.count) pairs failed:\n" + failures.joined(separator: "\n"))
         if FFmpegLocator.isAvailable {

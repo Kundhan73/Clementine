@@ -120,3 +120,14 @@ final class MediaPlannerTests: XCTestCase {
         XCTAssertEqual(bytes, 2000)
     }
 }
+
+final class ProbeRobustnessTests: XCTestCase {
+    func testInvalidUTF8InTags() throws {
+        var data = Data(#"{"streams":[{"index":0,"codec_type":"audio","codec_name":"pcm_s16le","tags":{"title":""#.utf8)
+        data.append(contentsOf: [0xFF, 0xFE, 0x41])
+        data.append(Data(#""}}],"format":{"format_name":"wav","duration":"1.0"}}"#.utf8))
+        let info = try MediaProbe.parse(data)
+        XCTAssertEqual(info.audio.count, 1)
+        XCTAssertEqual(info.duration ?? 0, 1.0, accuracy: 0.001)
+    }
+}
