@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/
+dist/
+vendor/
+*.app
+*.zip
+*.dmg
+*.icns
