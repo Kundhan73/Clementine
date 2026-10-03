@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/Kundhan73/Clementine/main/scripts/i
 | 0.3 Instant and dialog tools | ✅ done (v0.3.0) |
 | 0.4 Image and PDF editors | ✅ done (v0.4.0) |
 | 0.5 Media editors | ✅ done (v0.5.0) |
-| 1.0 Polish and performance | ⏳ |
+| 1.0 Polish and performance | ✅ done (v1.0.0) |
 
 How to use it: [docs/USER_GUIDE.md](docs/USER_GUIDE.md). Testing checklist:
 [docs/TESTING.md](docs/TESTING.md). Design: [docs/SPEC.md](docs/SPEC.md) and

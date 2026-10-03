@@ -34,7 +34,7 @@ compaction.
 | 0.3 Instant + dialog tools | ✅ v0.3.0 | |
 | 0.4 Image + PDF editors | ✅ v0.4.0 | export tests + snapshot review done |
 | 0.5 Media editors | ✅ v0.5.0 | engine unit + e2e tests; media snapshots (with ffmpeg) reviewed |
-| 1.0 Polish | 🔨 | Wheel settings, daily update option, Channels preview, ⌃⌥C Finder hotkey, a11y labels, user guide |
+| 1.0 Polish | ✅ v1.0.0 | Wheel settings, daily update option, notifications, ⌃⌥C hotkey, a11y labels, user guide, idle gates |
 
 ## Log
 
@@ -131,7 +131,25 @@ compaction.
   media information"). Pipes are now drained to EOF by their handlers, in
   order; `ProcessRunnerTests` covers large interleaved output.
 
-## Next
-- Idle wakeups: the self-test reports ~17 wakeups/s on CI; find the source
-  (diagnostic notice lists main run-loop wakeups and timers).
-- 1.0: final docs and v1.0.0.
+### 1.0 (polish and performance)
+- Settings → Wheel (hide/reorder per kind), optional daily update check
+  (`NSBackgroundActivityScheduler`), optional long-job notifications,
+  optional ⌃⌥C Finder-selection hotkey (Carbon hotkey + `osascript`),
+  VoiceOver labels, `docs/USER_GUIDE.md`.
+- Self-test gates: idle ≤ 35 MB and ≤ 1 % CPU over a 10 s window after
+  settling; it also reports wake-ups and main run-loop wake-ups per phase
+  (drag monitor / none / mouse-down only / catch-all with event types).
+- Idle wake-ups: a phased experiment first suggested the global mouse
+  monitor woke the app ~60×/s, but that phase always ran first; the same
+  mask measured later read 0.8×/s and no events arrived at all. The high
+  numbers were launch work still settling in the first seconds. The
+  self-test now settles 12 s before measuring. The drag monitor was still
+  narrowed to mouse-down only (drag/up added between press and release),
+  which can only reduce wake-ups.
+- Measured on CI: idle 8.6–8.8 MB, 0.04–0.3 % CPU; after a conversion
+  11–20 MB.
+
+## Next (after 1.0, only if wanted)
+- Owner feedback from real use on macOS 27 (gesture, prompts, energy).
+- Beyond parity (SPEC §6): EPUB output, iWork → PDF, vectorize, searchable
+  PDF OCR, PDF watermark, subtitle time-shift, CLI.

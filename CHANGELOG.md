@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0
+Polish and performance:
+- Even lighter in the background: until you press the mouse button,
+  Clementine listens for nothing else. Every build checks that it idles
+  under 35 MB and at about 0 % CPU (it measures 9 MB and ~0.1 %).
+- More reliable with audio and video: fixed a rare mix-up when reading a
+  helper program's output that could make a conversion fail with "Couldn't
+  read the media information".
+- **Settings → Wheel**, optional daily update check, notifications and the
+  ⌃⌥C Finder shortcut (from 0.4) are now covered in the new user guide
+  (docs/USER_GUIDE.md).
+- VoiceOver labels on editor buttons and drawing areas.
+
 ## 0.5.0
 Video and audio editors (⇧⌥-drag a video or a song):
 - **Trim**: drag the ends or press I / O while playing; **Fast** (instant,
