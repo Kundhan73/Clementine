@@ -59,3 +59,28 @@ final class JPEGMetadataTests: XCTestCase {
         XCTAssertNil(plain.range(of: Data("Exif".utf8)))
     }
 }
+
+final class JPEGExifInsertTests: XCTestCase {
+    func testAddsOrientationToExistingExif() throws {
+        // Big-endian EXIF with IFD0 = [Make "Can" (inline), XResolution → offset 38], next IFD 0.
+        var tiff: [UInt8] = [0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08]
+        tiff += [0x00, 0x02]
+        tiff += [0x01, 0x0F, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04] + Array("Can".utf8) + [0]
+        tiff += [0x01, 0x1A, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x26]
+        tiff += [0x00, 0x00, 0x00, 0x00]
+        tiff += [0x00, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x01]        // 72/1 at offset 38
+        let length = 2 + 6 + tiff.count
+        var data = Data([0xFF, 0xD8, 0xFF, 0xE1, UInt8(length >> 8), UInt8(length & 0xFF)] + Array("Exif".utf8) + [0, 0])
+        data.append(contentsOf: tiff)
+        data.append(contentsOf: [0xFF, 0xDA, 0x00, 0x02, 0x55, 0xFF, 0xD9])
+        XCTAssertEqual(JPEGOrientation.read(data), 1)
+        let patched = try XCTUnwrap(JPEGOrientation.set(data, orientation: 6))
+        XCTAssertEqual(JPEGOrientation.read(patched), 6)
+        // Make is still readable, and the rational value is still where the entry points.
+        XCTAssertNotNil(patched.range(of: Data("Can".utf8)))
+        XCTAssertEqual(Array(patched.suffix(7)), [0xFF, 0xDA, 0x00, 0x02, 0x55, 0xFF, 0xD9])
+        let again = try XCTUnwrap(JPEGOrientation.set(patched, orientation: 3))
+        XCTAssertEqual(again.count, patched.count, "second change patches in place")
+        XCTAssertEqual(JPEGOrientation.read(again), 3)
+    }
+}

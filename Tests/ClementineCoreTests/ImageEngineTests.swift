@@ -214,6 +214,31 @@ final class ImageEngineTests: XCTestCase {
         XCTAssertEqual(out.lastPathComponent, "single.png.zip")
     }
 
+    /// Reports (as a CI annotation) whether ImageIO's lossless metadata copy
+    /// works on this machine and why not.
+    func testCopyImageSourceDiagnostics() throws {
+        let url = try writeJPEGWithMetadata(name: "diag")
+        let src = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let type = try XCTUnwrap(CGImageSourceGetType(src))
+        var report: [String] = []
+        let variants: [(String, [String: Any])] = [
+            ("empty-meta", [kCGImageDestinationMetadata as String: CGImageMetadataCreateMutable(),
+                            kCGImageDestinationMergeMetadata as String: false]),
+            ("orientation-only", [kCGImageDestinationOrientation as String: 3]),
+            ("exclude-gps", [kCGImageMetadataShouldExcludeGPS as String: true]),
+            ("nil-options", [:]),
+        ]
+        for (name, options) in variants {
+            let out = tmp.file("diag-\(name).jpg")
+            let dest = try XCTUnwrap(CGImageDestinationCreateWithURL(out as CFURL, type, 1, nil))
+            var error: Unmanaged<CFError>?
+            let ok = CGImageDestinationCopyImageSource(dest, src, options.isEmpty ? nil : options as CFDictionary, &error)
+            let message = error.map { CFErrorCopyDescription($0.takeRetainedValue()) as String } ?? "-"
+            report.append("\(name)=\(ok) \(message)")
+        }
+        print("::notice title=CopyImageSource::\(report.joined(separator: " | "))")
+    }
+
     // MARK: Helpers
 
     func writeJPEGWithMetadata(name: String) throws -> URL {

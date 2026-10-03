@@ -14,7 +14,7 @@ public enum JPEGOrientation {
     public static func set(_ data: Data, orientation: Int) -> Data? {
         guard isJPEG(data), (1...8).contains(orientation) else { return nil }
         if let exif = findExif(data) {
-            guard let offset = exif.orientationOffset else { return nil } // EXIF without the tag: let ImageIO handle it
+            guard let offset = exif.orientationOffset else { return addOrientation(data, exif: exif, value: orientation) }
             var out = data
             writeShort(&out, at: offset, value: UInt16(orientation), bigEndian: exif.bigEndian)
             return out
@@ -47,6 +47,47 @@ public enum JPEGOrientation {
         var bigEndian: Bool
         /// Absolute offset of the orientation value (a SHORT), if present.
         var orientationOffset: Int?
+        /// Where the APP1 segment starts (its 0xFF) and ends (exclusive).
+        var segmentStart = 0
+        var segmentEnd = 0
+        /// Absolute offsets of the TIFF header and IFD0.
+        var tiffStart = 0
+        var ifd0 = 0
+    }
+
+    /// Adds an orientation entry when EXIF exists without one: IFD0 is copied
+    /// (plus the new entry) to the end of the EXIF block and the header is
+    /// pointed at the copy, so no other offsets move.
+    static func addOrientation(_ data: Data, exif: ExifInfo, value: Int) -> Data? {
+        let be = exif.bigEndian
+        guard exif.ifd0 + 2 <= exif.segmentEnd else { return nil }
+        let count = readShort(data, at: exif.ifd0, bigEndian: be)
+        let entriesEnd = exif.ifd0 + 2 + count * 12
+        guard entriesEnd + 4 <= exif.segmentEnd else { return nil }
+        var entries: [[UInt8]] = (0..<count).map { n in Array(data[(exif.ifd0 + 2 + n * 12)..<(exif.ifd0 + 14 + n * 12)]) }
+        func short(_ v: Int) -> [UInt8] { be ? [UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)] : [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)] }
+        func long(_ v: Int) -> [UInt8] {
+            let b = [UInt8(v >> 24 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)]
+            return be ? b : b.reversed()
+        }
+        let entry = short(0x0112) + short(3) + long(1) + short(value) + [0, 0]
+        let insertAt = entries.firstIndex { e in
+            (be ? (Int(e[0]) << 8 | Int(e[1])) : (Int(e[1]) << 8 | Int(e[0]))) > 0x0112
+        } ?? entries.count
+        entries.insert(entry, at: insertAt)
+        var tiff = Array(data[exif.tiffStart..<exif.segmentEnd])
+        if tiff.count % 2 == 1 { tiff.append(0) }
+        let newIFD = tiff.count
+        tiff += short(entries.count) + entries.flatMap { $0 } + Array(data[entriesEnd..<(entriesEnd + 4)])
+        let header = long(newIFD)
+        for k in 0..<4 { tiff[4 + k] = header[k] }
+        let length = 2 + 6 + tiff.count
+        guard length <= 0xFFFF else { return nil }
+        var out = Data(data[data.startIndex..<exif.segmentStart])
+        out.append(contentsOf: [0xFF, 0xE1, UInt8(length >> 8), UInt8(length & 0xFF)] + Array("Exif".utf8) + [0, 0])
+        out.append(contentsOf: tiff)
+        out.append(data[exif.segmentEnd...])
+        return out
     }
 
     /// Walks the segments up to the scan and parses IFD0 of the first Exif APP1.
@@ -72,16 +113,19 @@ public enum JPEGOrientation {
                 }
                 let end = i + 2 + length
                 let ifd0 = tiff + Int(readLong(data, at: tiff + 4, bigEndian: bigEndian))
-                guard ifd0 + 2 <= end else { return ExifInfo(bigEndian: bigEndian, orientationOffset: nil) }
+                var info = ExifInfo(bigEndian: bigEndian, orientationOffset: nil, segmentStart: i, segmentEnd: end,
+                                    tiffStart: tiff, ifd0: ifd0)
+                guard ifd0 + 2 <= end else { return info }
                 let count = Int(readShort(data, at: ifd0, bigEndian: bigEndian))
                 for n in 0..<count {
                     let entry = ifd0 + 2 + n * 12
                     guard entry + 12 <= end else { break }
                     if readShort(data, at: entry, bigEndian: bigEndian) == 0x0112 {
-                        return ExifInfo(bigEndian: bigEndian, orientationOffset: entry + 8)
+                        info.orientationOffset = entry + 8
+                        return info
                     }
                 }
-                return ExifInfo(bigEndian: bigEndian, orientationOffset: nil)
+                return info
             }
             i += 2 + length
         }
