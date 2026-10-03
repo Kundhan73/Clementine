@@ -14,7 +14,8 @@ public struct Engines: JobExecuting {
 
     // MARK: Availability (what this build can do)
 
-    public static let implementedEngines: Set<EngineKind> = [.image, .imageToPDF, .imageToSVG, .imageToDOCX, .archive]
+    public static let implementedEngines: Set<EngineKind> = [.image, .imageToPDF, .imageToSVG, .imageToDOCX, .archive,
+                                                              .media, .subtitle, .textToSubtitle]
     /// Tools and the file kinds they are implemented for so far.
     public static let implementedTools: [Tool: Set<FileKind>] = [
         .removeMetadata: [.image],
@@ -85,6 +86,15 @@ public struct Engines: JobExecuting {
         case .image, .imageToPDF, .imageToSVG, .imageToDOCX:
             return try await withOutput(for: item, extension: target.fileExtension, request: request) { url in
                 try await ImageEngine.convert(item, to: target, output: url, settings: settings) { job.report($0) }
+            }
+        case .media:
+            return try await withOutput(for: item, extension: target.fileExtension, request: request) { url in
+                try await MediaEngine.convert(item, to: target, output: url, settings: settings) { job.report($0) }
+            }
+        case .subtitle, .textToSubtitle:
+            return try await withOutput(for: item, extension: target.fileExtension, request: request) { url in
+                let text = try Subtitles.convert(Data(contentsOf: item.url), from: item.format ?? .srt, to: target)
+                try Data(text.utf8).write(to: url)
             }
         case .archive:
             return try await withOutput(for: item, base: item.url.lastPathComponent, extension: target.fileExtension,

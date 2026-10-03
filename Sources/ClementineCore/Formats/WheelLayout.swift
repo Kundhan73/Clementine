@@ -28,8 +28,10 @@ public struct WheelLayout {
 
     public var hubRadius: CGFloat { 46 * scale }
     public var chipRadius: CGFloat { (largeChips ? 31 : 27) * scale }
-    public var innerCount: Int { min(count, Self.maxPerRing) }
-    public var outerCount: Int { max(0, count - Self.maxPerRing) }
+    /// Up to 12 chips use one ring; beyond that the chips are split about
+    /// evenly between two rings (popular ones on the inner ring).
+    public var innerCount: Int { count <= Self.maxPerRing ? count : min(Self.maxPerRing, count / 2) }
+    public var outerCount: Int { count - innerCount }
 
     public var innerRadius: CGFloat {
         let gap: CGFloat = 10 * scale

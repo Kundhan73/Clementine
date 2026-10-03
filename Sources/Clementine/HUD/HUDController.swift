@@ -151,7 +151,8 @@ final class JobRowView: NSView {
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
         detail.maximumNumberOfLines = 3
-        detail.lineBreakMode = .byTruncatingTail
+        detail.lineBreakMode = .byWordWrapping
+        detail.preferredMaxLayoutWidth = 236
         detail.isSelectable = false
         detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         progress.style = .bar

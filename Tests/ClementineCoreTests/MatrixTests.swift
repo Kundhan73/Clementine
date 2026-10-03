@@ -133,8 +133,8 @@ final class WheelLayoutTests: XCTestCase {
 
     func testTwoRings() {
         let layout = WheelLayout(count: 17)
-        XCTAssertEqual(layout.innerCount, 12)
-        XCTAssertEqual(layout.outerCount, 5)
+        XCTAssertEqual(layout.innerCount, 8)
+        XCTAssertEqual(layout.outerCount, 9)
         for i in 0..<17 {
             XCTAssertEqual(layout.hitTest(layout.center(of: i)), .chip(i), "chip \(i)")
         }

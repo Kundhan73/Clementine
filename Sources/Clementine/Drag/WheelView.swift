@@ -167,8 +167,8 @@ final class WheelView: NSView {
         hub.path = CGPath(ellipseIn: CGRect(x: c.x - hubR, y: c.y - hubR, width: 2 * hubR, height: 2 * hubR), transform: nil)
         hub.lineWidth = 1
 
-        let iconSide = 34 * s
-        let iconCenter = CGPoint(x: c.x, y: c.y + 11 * s)
+        let iconSide = 40 * s
+        let iconCenter = CGPoint(x: c.x, y: c.y + 12 * s)
         hubIcon.frame = CGRect(x: iconCenter.x - iconSide / 2, y: iconCenter.y - iconSide / 2, width: iconSide, height: iconSide)
         hubIconBack.frame = hubIcon.frame.offsetBy(dx: 5 * s, dy: 4 * s)
         let icon = fileIcon ?? NSWorkspace.shared.icon(for: .item)
@@ -242,7 +242,7 @@ final class WheelView: NSView {
         let lineH = ceil(font.ascender - font.descender + font.leading) + 1
         let lines: CGFloat = (text as NSString).size(withAttributes: [.font: font]).width > width ? 2 : 1
         let h = lineH * lines
-        let top = center.y - 9 * s
+        let top = center.y - 11 * s
         hubLabel.frame = CGRect(x: center.x - width / 2, y: top - h, width: width, height: h)
         hubLabel.foregroundColor = hovered == nil ? palette.secondaryText : palette.text
     }

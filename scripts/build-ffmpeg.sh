@@ -156,7 +156,10 @@ cmake -S "$SRC/aom" -B "$WORK/aom-build" -G "Unix Makefiles" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
   -DBUILD_SHARED_LIBS=0 -DENABLE_DOCS=0 -DENABLE_EXAMPLES=0 -DENABLE_TESTDATA=0 \
-  -DENABLE_TESTS=0 -DENABLE_TOOLS=0 -DCONFIG_AV1_DECODER=0 -DCONFIG_RUNTIME_CPU_DETECT=0
+  -DENABLE_TESTS=0 -DENABLE_TOOLS=0 -DCONFIG_AV1_DECODER=0 \
+  -DCONFIG_RUNTIME_CPU_DETECT=1 -DENABLE_SVE=0 -DENABLE_SVE2=0
+# Runtime CPU detection matters: building for the newest Arm extensions
+# without it crashes ("Illegal instruction") on older Apple chips.
 cmake --build "$WORK/aom-build" -j "$JOBS"
 cmake --install "$WORK/aom-build"
 
