@@ -125,7 +125,8 @@ final class ImageEngineTests: XCTestCase {
                 checked += 1
             }
         }
-        print("image pairs checked: \(checked); skipped: \(skipped.joined(separator: ", "))")
+        // Shows up as a check-run annotation (readable without downloading logs).
+        print("::notice title=Image e2e::checked \(checked) pairs; skipped: \(skipped.isEmpty ? "none" : skipped.joined(separator: ", "))")
         XCTAssertGreaterThan(checked, 40)
     }
 

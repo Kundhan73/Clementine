@@ -146,6 +146,12 @@ public final class Job: Identifiable, @unchecked Sendable {
         return wasQueued
     }
 
+    /// Sets the state directly. Only for UI previews and snapshots.
+    public func setPreviewState(_ state: State, progress fraction: Double = 0) {
+        sync { _state = state }
+        report(fraction)
+    }
+
     // MARK: Queue-internal
 
     func markRunning() -> Bool {

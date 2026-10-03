@@ -12,7 +12,7 @@ import ClementineCore
 @MainActor
 final class DragMonitor {
     /// Wheel should appear (nil → mode) / switch mode / disappear.
-    var onModeChange: (_ old: WheelMode?, _ new: WheelMode?) -> Void = { _, _ in }
+    var onModeChange: @MainActor (_ old: WheelMode?, _ new: WheelMode?) -> Void = { _, _ in }
 
     private var monitor: Any?
     private var timer: Timer?
