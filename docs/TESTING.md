@@ -100,3 +100,6 @@ changed. Esc or Cancel closes without saving.
 - Anything confusing, ugly or slow. Screenshots help (⇧⌘4).
 - Memory: open Activity Monitor, find Clementine, and note the "Memory" value
   after it has been idle for a minute (target: under 35 MB).
+- Energy: in Activity Monitor's **Energy** tab, Clementine's "Idle Wake Ups"
+  should stay near 0 while you're not dragging anything, even when you move
+  the mouse around.

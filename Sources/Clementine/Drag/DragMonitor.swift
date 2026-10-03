@@ -6,15 +6,19 @@ import ClementineCore
 /// change count. Never reads pasteboard *contents* (that happens only inside
 /// the wheel's dragging-destination callbacks).
 ///
-/// Cost model: idle = no timers; a mouse drag that isn't a drag session costs
-/// at most ~20 cheap change-count reads per second; during a real drag a
-/// ~30 Hz timer watches the modifier keys until mouse-up.
+/// Cost model: idle = no timers, and only mouse-down is watched (so plain
+/// pointer movement never wakes the app); while a button is held, drag/up
+/// events are watched and cost at most ~20 cheap change-count reads per
+/// second; during a real drag a ~30 Hz timer watches the modifier keys until
+/// mouse-up.
 @MainActor
 final class DragMonitor {
     /// Wheel should appear (nil → mode) / switch mode / disappear.
     var onModeChange: @MainActor (_ old: WheelMode?, _ new: WheelMode?) -> Void = { _, _ in }
 
     private var monitor: Any?
+    /// Drag/up events, only while the button is down.
+    private var pressMonitor: Any?
     private var timer: Timer?
     private var baselineChangeCount = 0
     private var mouseIsDown = false
@@ -27,7 +31,7 @@ final class DragMonitor {
 
     func start() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
             let type = event.type
             MainActor.assumeIsolated { self?.handle(type) }
         }
@@ -39,12 +43,28 @@ final class DragMonitor {
         endDrag()
     }
 
+    private func watchPress(_ on: Bool) {
+        if on, pressMonitor == nil {
+            pressMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+                let type = event.type
+                MainActor.assumeIsolated { self?.handle(type) }
+            }
+        } else if !on, let monitor = pressMonitor {
+            pressMonitor = nil
+            // Not from inside the monitor's own callback.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { NSEvent.removeMonitor(monitor) }
+            }
+        }
+    }
+
     private func handle(_ type: NSEvent.EventType) {
         switch type {
         case .leftMouseDown:
             endDrag()
             mouseIsDown = true
             baselineChangeCount = NSPasteboard(name: .drag).changeCount
+            watchPress(true)
         case .leftMouseDragged:
             // Fast path: nothing to do once confirmed (the timer takes over)
             // or when the button isn't tracked.
@@ -104,6 +124,7 @@ final class DragMonitor {
     private func endDrag() {
         timer?.invalidate()
         timer = nil
+        watchPress(false)
         mouseIsDown = false
         dragConfirmed = false
         suppressed = false
