@@ -1,5 +1,6 @@
 import AppKit
 import ClementineCore
+import SwiftUI
 
 /// `--render-snapshots <dir>`: renders UI pieces offscreen to PNG files so
 /// they can be reviewed without a Mac (CI publishes them to the ci-snapshots
@@ -24,6 +25,7 @@ enum SnapshotRenderer {
             windowContent("settings-output-\(suffix)", SettingsWindowController.makeView(tab: .output), appearance)
             windowContent("settings-quality-\(suffix)", SettingsWindowController.makeView(tab: .quality), appearance)
             windowContent("onboarding-\(suffix)", OnboardingWindowController.makeView(), appearance)
+            dialogs(suffix: suffix, appearance: appearance)
         }
         if let icon = NSApp.applicationIconImage {
             save("app-icon", image: icon, size: NSSize(width: 256, height: 256))
@@ -124,6 +126,19 @@ enum SnapshotRenderer {
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
         windowContent("hud-\(suffix)", container, appearance)
+    }
+
+    private static func dialogs(suffix: String, appearance: NSAppearance) {
+        let cases: [(Tool, [String])] = [
+            (.compress, ["photo.jpg"]), (.resize, ["photo.jpg"]), (.rotate, ["photo.jpg"]),
+            (.createPDF, ["a.jpg", "b.png", "c.pdf"]), (.speed, ["clip.mov"]), (.split, ["report.pdf"]),
+            (.join, ["one.mp4", "two.mp4"]), (.extractAudio, ["clip.mov"]), (.normalize, ["podcast.mp3"]),
+            (.channels, ["song.wav"]),
+        ]
+        for (tool, files) in cases {
+            let view = ToolUI.dialog(for: tool, items: sampleItems(files), run: { _, _ in }, cancel: {})
+            windowContent("dialog-\(tool.rawValue)-\(suffix)", NSHostingView(rootView: view), appearance)
+        }
     }
 
     /// Hosts a view in a real (briefly visible) window so AppKit and SwiftUI

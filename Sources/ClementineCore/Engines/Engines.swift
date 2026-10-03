@@ -25,8 +25,20 @@ public struct Engines: JobExecuting {
     ]
     /// Tools and the file kinds they are implemented for so far.
     public static let implementedTools: [Tool: Set<FileKind>] = [
-        .removeMetadata: [.image],
-        .readQR: [.image],
+        .compress: [.image, .video, .audio, .pdf],
+        .resize: [.image, .video],
+        .rotate: [.image, .video, .pdf],
+        .removeMetadata: [.image, .audio, .video, .pdf],
+        .readQR: [.image, .pdf],
+        .createPDF: [.image, .pdf],
+        .mergePDF: [.pdf, .image],
+        .split: [.pdf, .video, .audio],
+        .join: [.video, .audio],
+        .speed: [.video, .audio],
+        .normalize: [.audio, .video],
+        .mute: [.video],
+        .extractAudio: [.video],
+        .channels: [.audio],
     ]
     static let implementedArchiveTargets: Set<Format> = [.zip, .tar, .tgz, .gz]
 
@@ -46,11 +58,15 @@ public struct Engines: JobExecuting {
             }
             return true
         case .tool(let tool):
-            guard let kinds = implementedTools[tool] else { return false }
-            if tool == .removeMetadata && items.contains(where: { !($0.format.map(canWriteImage) ?? false) }) {
+            guard let kinds = implementedTools[tool], items.allSatisfy({ kinds.contains($0.kind) }) else { return false }
+            if items.contains(where: { $0.kind == .audio || $0.kind == .video }) && !FFmpegLocator.isAvailable {
                 return false
             }
-            return items.allSatisfy { kinds.contains($0.kind) }
+            if tool == .removeMetadata,
+               items.contains(where: { $0.kind == .image && !($0.format.map(canWriteImage) ?? false) }) {
+                return false
+            }
+            return true
         }
     }
 

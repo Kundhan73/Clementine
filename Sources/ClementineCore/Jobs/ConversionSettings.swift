@@ -40,7 +40,131 @@ public enum ToolOptions: Sendable {
     case compress(CompressOptions)
     case resize(ResizeOptions)
     case rotate(RotateOptions)
+    case createPDF(CreatePDFOptions)
+    case splitPDF(SplitPDFOptions)
+    case splitMedia(SplitMediaOptions)
+    case join(JoinOptions)
+    case speed(Double)
+    case normalize(NormalizeOptions)
+    case extractAudio(Format)
+    case channels(ChannelOptions)
     case custom([String: String])
+}
+
+public struct CreatePDFOptions: Sendable, Equatable {
+    public enum PageSize: String, Sendable, CaseIterable { case fitImage, a4, letter }
+    public var pageSize: PageSize
+    /// Margin in points (A4/Letter pages).
+    public var margin: Double
+    public init(pageSize: PageSize = .fitImage, margin: Double = 0) {
+        self.pageSize = pageSize
+        self.margin = margin
+    }
+}
+
+public struct SplitPDFOptions: Sendable, Equatable {
+    public enum Mode: Sendable, Equatable {
+        case everyPage
+        case everyN(Int)
+        /// "1-3, 5, 7-10": one output per range.
+        case ranges(String)
+    }
+    public var mode: Mode
+    public init(mode: Mode = .everyPage) { self.mode = mode }
+
+    /// Page groups (1-based) for a document with `pageCount` pages.
+    public func groups(pageCount: Int) throws -> [[Int]] {
+        switch mode {
+        case .everyPage:
+            return (1...max(1, pageCount)).map { [$0] }
+        case .everyN(let n):
+            let size = max(1, n)
+            return stride(from: 1, through: pageCount, by: size).map { start in
+                Array(start...min(pageCount, start + size - 1))
+            }
+        case .ranges(let text):
+            return try PageRanges.parse(text, pageCount: pageCount)
+        }
+    }
+}
+
+/// Parses "1-3, 5, 7-10" style page ranges.
+public enum PageRanges {
+    public static func parse(_ text: String, pageCount: Int) throws -> [[Int]] {
+        var groups: [[Int]] = []
+        for part in text.split(whereSeparator: { $0 == "," || $0 == ";" }) {
+            let piece = part.trimmingCharacters(in: .whitespaces)
+            if piece.isEmpty { continue }
+            let bounds = piece.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard let first = Int(bounds[0]) else { throw JobFailure("“\(piece)” isn't a page or a range like 3-5.") }
+            let last = bounds.count == 2 ? (bounds[1].isEmpty ? pageCount : Int(bounds[1])) : first
+            guard let last else { throw JobFailure("“\(piece)” isn't a page or a range like 3-5.") }
+            guard first >= 1, last >= first, last <= pageCount else {
+                throw JobFailure("“\(piece)” is outside pages 1–\(pageCount).")
+            }
+            groups.append(Array(first...last))
+        }
+        guard !groups.isEmpty else { throw JobFailure("Enter pages to keep, for example 1-3, 5.") }
+        return groups
+    }
+}
+
+public struct SplitMediaOptions: Sendable, Equatable {
+    public enum Mode: Sendable, Equatable {
+        case parts(Int)
+        case every(seconds: Double)
+        /// Split points in seconds (markers).
+        case at([Double])
+    }
+    public var mode: Mode
+    public init(mode: Mode = .parts(2)) { self.mode = mode }
+
+    /// (start, duration) segments for a file of `duration` seconds.
+    public func segments(duration: Double) -> [(start: Double, duration: Double)] {
+        guard duration > 0 else { return [] }
+        var points: [Double]
+        switch mode {
+        case .parts(let n):
+            let count = max(1, n)
+            points = (1..<count).map { duration * Double($0) / Double(count) }
+        case .every(let seconds):
+            let step = max(0.5, seconds)
+            points = Array(stride(from: step, to: duration, by: step))
+        case .at(let marks):
+            points = marks.filter { $0 > 0.05 && $0 < duration - 0.05 }.sorted()
+        }
+        let edges = [0] + points + [duration]
+        return zip(edges, edges.dropFirst()).map { ($0, $1 - $0) }.filter { $0.1 > 0.05 }
+    }
+}
+
+public struct JoinOptions: Sendable, Equatable {
+    /// Indexes into the request's inputs, in the order to join.
+    public var order: [Int]?
+    public init(order: [Int]? = nil) { self.order = order }
+}
+
+public struct NormalizeOptions: Sendable, Equatable {
+    public var integratedLUFS: Double
+    public var truePeak: Double
+    public var loudnessRange: Double
+    public init(integratedLUFS: Double = -16, truePeak: Double = -1, loudnessRange: Double = 11) {
+        self.integratedLUFS = integratedLUFS
+        self.truePeak = truePeak
+        self.loudnessRange = loudnessRange
+    }
+}
+
+public struct ChannelOptions: Sendable, Equatable {
+    public enum Mode: String, Sendable, CaseIterable { case mono, stereo, leftOnly, rightOnly, swap }
+    public var mode: Mode
+    public var leftGainDB: Double
+    public var rightGainDB: Double
+    public init(mode: Mode = .mono, leftGainDB: Double = 0, rightGainDB: Double = 0) {
+        self.mode = mode
+        self.leftGainDB = leftGainDB
+        self.rightGainDB = rightGainDB
+    }
 }
 
 public struct CompressOptions: Sendable, Equatable {

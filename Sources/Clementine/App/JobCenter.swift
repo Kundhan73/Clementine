@@ -66,7 +66,8 @@ final class JobCenter {
     }
 
     /// One job per file, except archives of several files and multi-input tools.
-    static func requests(for chip: WheelChip, items: [InputItem], outputDirectory: URL?) -> [JobRequest] {
+    static func requests(for chip: WheelChip, items: [InputItem], outputDirectory: URL?,
+                         options: ToolOptions = .none) -> [JobRequest] {
         switch chip {
         case .format(let target):
             if items.count > 1, target.kind == .archive, target != .extract {
@@ -74,10 +75,10 @@ final class JobCenter {
             }
             return items.map { JobRequest(inputs: [$0], operation: .convert(target), outputDirectory: outputDirectory) }
         case .tool(let tool):
-            if tool.inputRange.upperBound > 1 && [.collage, .createPDF, .mergePDF, .join].contains(tool) {
-                return [JobRequest(inputs: items, operation: .tool(tool), outputDirectory: outputDirectory)]
+            if [.collage, .createPDF, .mergePDF, .join].contains(tool) {
+                return [JobRequest(inputs: items, operation: .tool(tool), options: options, outputDirectory: outputDirectory)]
             }
-            return items.map { JobRequest(inputs: [$0], operation: .tool(tool), outputDirectory: outputDirectory) }
+            return items.map { JobRequest(inputs: [$0], operation: .tool(tool), options: options, outputDirectory: outputDirectory) }
         }
     }
 

@@ -35,6 +35,8 @@ enum SelfTest {
             let after = Footprint.megabytes()
             print(String(format: "selftest: after_job_footprint_mb=%.1f budget_mb=%.0f", after, afterJobBudgetMB))
             if after > afterJobBudgetMB { ok = false }
+            print(String(format: "::notice title=Self-test::idle %.1f MB, after a conversion %.1f MB (%@)",
+                         idle, after, ok ? "PASS" : "FAIL"))
             print("selftest: \(ok ? "PASS" : "FAIL")")
             fflush(stdout)
             exit(ok ? 0 : 1)

@@ -119,10 +119,3 @@ final class TextResultPanel: NSObject, NSWindowDelegate {
     }
 }
 
-/// Opens dialogs and editors for tools that need them (filled in by later
-/// milestones). Tools not handled here run instantly with default options.
-@MainActor
-enum ToolUI {
-    static func handles(_ tool: Tool) -> Bool { false }
-    static func open(_ tool: Tool, items: [InputItem]) {}
-}
