@@ -39,15 +39,31 @@ public enum ProcessRunner {
 
         let collector = OutputCollector(onLine: onStdoutLine)
         let collectsStdout = stdoutFile == nil
+        // Each pipe is read in order by its handler until EOF; the result is
+        // returned only once both pipes are drained (reading leftovers from
+        // another thread could reorder chunks and corrupt output like JSON).
+        let drained = DispatchGroup()
         if collectsStdout {
+            drained.enter()
             out.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
-                if data.isEmpty { handle.readabilityHandler = nil } else { collector.appendOut(data) }
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    drained.leave()
+                } else {
+                    collector.appendOut(data)
+                }
             }
         }
+        drained.enter()
         err.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            if data.isEmpty { handle.readabilityHandler = nil } else { collector.appendErr(data) }
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                drained.leave()
+            } else {
+                collector.appendErr(data)
+            }
         }
         let exit = ExitWaiter()
         process.terminationHandler = { _ in exit.signal() }
@@ -66,11 +82,19 @@ public enum ProcessRunner {
         } onCancel: {
             process.terminate()
         }
-        // Drain whatever is left in the pipes.
-        out.fileHandleForReading.readabilityHandler = nil
-        err.fileHandleForReading.readabilityHandler = nil
-        if collectsStdout, let rest = try? out.fileHandleForReading.readToEnd() { collector.appendOut(rest) }
-        if let rest = try? err.fileHandleForReading.readToEnd() { collector.appendErr(rest) }
+        // EOF normally follows exit at once; a grandchild still holding the
+        // pipe open shouldn't hang us, so give up waiting after a moment.
+        let complete = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                c.resume(returning: drained.wait(timeout: .now() + 3) == .success)
+            }
+        }
+        if !complete {
+            out.fileHandleForReading.readabilityHandler = nil
+            err.fileHandleForReading.readabilityHandler = nil
+            if collectsStdout, let rest = try? out.fileHandleForReading.readToEnd() { collector.appendOut(rest) }
+            if let rest = try? err.fileHandleForReading.readToEnd() { collector.appendErr(rest) }
+        }
         collector.flush()
         if Task.isCancelled { throw CancellationError() }
         return ProcessResult(status: process.terminationStatus, stdout: collector.stdout, stderr: collector.stderr)
