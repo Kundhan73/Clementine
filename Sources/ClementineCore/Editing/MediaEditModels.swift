@@ -86,6 +86,8 @@ public struct VisualizerOptions: Sendable, Equatable {
         case coverArt
         /// Blurred and darkened cover art (gradient when there is none).
         case blurredCover
+        /// A picture the user chose (aspect-filled).
+        case image(URL)
     }
 
     public enum Shape: String, Sendable, CaseIterable {

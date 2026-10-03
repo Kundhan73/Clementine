@@ -23,6 +23,8 @@ final class MediaSession: ObservableObject {
     @Published private(set) var displaySize: CGSize = .zero
     @Published private(set) var thumbnails: [CGImage] = []
     @Published private(set) var waveform: CGImage?
+    /// First frame, shown under the player until it draws.
+    @Published private(set) var poster: CGImage?
 
     let item: InputItem
     let wantsVideo: Bool
@@ -85,7 +87,10 @@ final class MediaSession: ObservableObject {
                 try? await MediaAnalysis.waveform(item.url, to: png, width: 1600, height: 200)
                 if !closed { waveform = try? ImageCodec.decode(png, format: .png).image }
             }
-            if wantsVideo { await makeThumbnails(asset) }
+            if wantsVideo {
+                poster = await Self.frame(of: asset, at: 0, maxSize: 1600)
+                await makeThumbnails(asset)
+            }
         } catch {
             if !closed { state = .failed(JobFailure.from(error).message) }
         }
@@ -96,6 +101,15 @@ final class MediaSession: ObservableObject {
         guard (try? await asset.load(.isPlayable)) == true else { return false }
         let tracks = (try? await asset.loadTracks(withMediaType: video ? .video : .audio)) ?? []
         return !tracks.isEmpty
+    }
+
+    static func frame(of asset: AVURLAsset, at seconds: Double, maxSize: CGFloat) async -> CGImage? {
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: maxSize, height: maxSize)
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        return try? await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
     }
 
     private func makeThumbnails(_ asset: AVURLAsset) async {
@@ -180,6 +194,7 @@ final class MediaSession: ObservableObject {
         player.replaceCurrentItem(with: nil)
         thumbnails = []
         waveform = nil
+        poster = nil
         work?.remove()
         work = nil
     }
@@ -236,7 +251,6 @@ final class PlayerSurfaceView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor(white: 0.08, alpha: 1).cgColor
         playerLayer.videoGravity = .resize
         layer?.addSublayer(playerLayer)
     }

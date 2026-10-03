@@ -29,6 +29,9 @@ public enum VisualizerArt {
                 cover = try? ImageCodec.decode(coverURL, format: .png).image
             }
         }
+        if case .image(let url) = options.background {
+            cover = try? ImageCodec.decode(url).image
+        }
         let background = dir.appendingPathComponent("background.png")
         try ImageCodec.write(try backgroundImage(options.background, cover: cover, width: w, height: h), as: .png, to: background)
         var overlay: URL?
@@ -63,7 +66,7 @@ public enum VisualizerArt {
             ctx.fill(canvas)
         case .gradient(let a, let b):
             gradient(a, b)
-        case .coverArt:
+        case .coverArt, .image:
             if let cover {
                 ctx.interpolationQuality = .high
                 ctx.draw(cover, in: aspectFill(cover))

@@ -211,6 +211,29 @@ final class MediaEditE2ETests: XCTestCase {
         XCTAssertGreaterThan(Int(px[0]), Int(px[1]) + 80, "background should be the red cover, got \(px)")
     }
 
+    func testVisualizerWithAChosenPicture() async throws {
+        let picture = tmp.file("backdrop.png")
+        let ctx = CGContext(data: nil, width: 400, height: 200, bitsPerComponent: 8, bytesPerRow: 0, space: ImageCodec.sRGB,
+                            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        ctx.setFillColor(CGColor(srgbRed: 0, green: 0.8, blue: 0, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+        try ImageCodec.write(ctx.makeImage()!, as: .png, to: picture)
+        let audio = try await tone("speech.m4a", seconds: 2)
+        let out = try await export(.visualizer, audio, .visualizer(VisualizerOptions(style: .circle, background: .image(picture),
+                                                                                      title: "Episode 1", shape: .portrait)))
+        let info = try await MediaProbe.probe(out)
+        XCTAssertEqual(info.video?.width, 1080)
+        XCTAssertEqual(info.video?.height, 1920)
+        let image = try await frame(out, at: 1)
+        var px = [UInt8](repeating: 0, count: 4)
+        px.withUnsafeMutableBytes { buffer in
+            let c = CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                              space: ImageCodec.sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            c.draw(image, in: CGRect(x: -20, y: -(image.height - 1 - (image.height - 40)), width: image.width, height: image.height))
+        }
+        XCTAssertGreaterThan(Int(px[1]), Int(px[0]) + 60, "background should be the green picture, got \(px)")
+    }
+
     // MARK: Analysis helpers
 
     func testSilencesWaveformAndProxy() async throws {

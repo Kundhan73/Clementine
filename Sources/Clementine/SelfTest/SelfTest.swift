@@ -13,12 +13,19 @@ enum SelfTest {
     static let idleCPUBudgetPercent = 1.0
     static let afterJobBudgetMB = 150.0
 
+    /// Settle after launch, then measure an idle window this long.
+    static let settleSeconds = 6.0, windowSeconds = 10.0
+
     static func start() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + settleSeconds) {
             MainActor.assumeIsolated {
-                let start = cpuSeconds()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    MainActor.assumeIsolated { runChecks(idleCPU: (cpuSeconds() - start) / 5 * 100) }
+                let cpu = cpuSeconds(), wakeups = Footprint.wakeups()
+                DispatchQueue.main.asyncAfter(deadline: .now() + windowSeconds) {
+                    MainActor.assumeIsolated {
+                        let perSecond = Double(Footprint.wakeups() - wakeups) / windowSeconds
+                        print(String(format: "selftest: idle_wakeups_per_second=%.1f", perSecond))
+                        runChecks(idleCPU: (cpuSeconds() - cpu) / windowSeconds * 100, wakeups: perSecond)
+                    }
                 }
             }
         }
@@ -32,7 +39,7 @@ enum SelfTest {
             Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1e6
     }
 
-    private static func runChecks(idleCPU: Double) {
+    private static func runChecks(idleCPU: Double, wakeups: Double) {
         let idle = Footprint.megabytes()
         print(String(format: "selftest: idle_cpu_percent=%.2f budget=%.1f", idleCPU, idleCPUBudgetPercent))
         print(String(format: "selftest: idle_footprint_mb=%.1f budget_mb=%.0f", idle, idleBudgetMB))
@@ -51,8 +58,8 @@ enum SelfTest {
             let after = Footprint.megabytes()
             print(String(format: "selftest: after_job_footprint_mb=%.1f budget_mb=%.0f", after, afterJobBudgetMB))
             if after > afterJobBudgetMB { ok = false }
-            print(String(format: "::notice title=Self-test::idle %.1f MB and %.2f%% CPU, after a conversion %.1f MB (%@)",
-                         idle, idleCPU, after, ok ? "PASS" : "FAIL"))
+            print(String(format: "::notice title=Self-test::idle %.1f MB, %.2f%% CPU, %.1f wakeups/s; after a conversion %.1f MB (%@)",
+                         idle, idleCPU, wakeups, after, ok ? "PASS" : "FAIL"))
             print("selftest: \(ok ? "PASS" : "FAIL")")
             fflush(stdout)
             exit(ok ? 0 : 1)
@@ -98,6 +105,18 @@ enum SelfTest {
 }
 
 enum Footprint {
+    /// Interrupt + idle wakeups so far (timers and other sources of wakeups).
+    static func wakeups() -> UInt64 {
+        var info = task_power_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_power_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_POWER_INFO), $0, &count)
+            }
+        }
+        return kr == KERN_SUCCESS ? info.task_interrupt_wakeups + info.task_platform_idle_wakeups : 0
+    }
+
     /// Physical footprint (what Activity Monitor calls "Memory") in MB.
     static func megabytes() -> Double {
         var info = task_vm_info_data_t()

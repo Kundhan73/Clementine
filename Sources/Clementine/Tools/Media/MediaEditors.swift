@@ -57,6 +57,12 @@ struct MediaStage<Overlay: View>: View {
             let fit = FitGeometry(imageSize: session.displaySize, viewSize: geo.size)
             ZStack(alignment: .topLeading) {
                 if session.wantsVideo {
+                    if let poster = session.poster, fit.rect.width > 0 {
+                        Image(decorative: poster, scale: 1)
+                            .resizable()
+                            .frame(width: fit.rect.width, height: fit.rect.height)
+                            .offset(x: fit.rect.minX, y: fit.rect.minY)
+                    }
                     PlayerSurface(player: session.player, displaySize: session.displaySize)
                         .frame(width: geo.size.width, height: geo.size.height)
                 } else {
@@ -728,6 +734,10 @@ struct BleepEditor: View {
                         Text("Hz")
                     }
                 }
+                if let i = selected, intervals.indices.contains(i) {
+                    TimeField(title: "From", value: bound(i, upper: false), range: 0...max(0, session.duration))
+                    TimeField(title: "To", value: bound(i, upper: true), range: 0...max(0, session.duration))
+                }
                 Button(previewer.state == .idle ? "Preview" : previewer.state == .rendering ? "Preparing…" : "Stop") {
                     togglePreview()
                 }
@@ -774,6 +784,18 @@ struct BleepEditor: View {
             stopPreview()
             session.close()
         }
+    }
+
+    /// One end of an interval, kept at least 50 ms long.
+    private func bound(_ index: Int, upper: Bool) -> Binding<Double> {
+        Binding(get: {
+            guard intervals.indices.contains(index) else { return 0 }
+            return upper ? intervals[index].upperBound : intervals[index].lowerBound
+        }, set: { v in
+            guard intervals.indices.contains(index) else { return }
+            let r = intervals[index]
+            intervals[index] = upper ? r.lowerBound...max(v, r.lowerBound + 0.05) : min(v, r.upperBound - 0.05)...r.upperBound
+        })
     }
 
     private func remove(_ index: Int) {

@@ -1,6 +1,7 @@
 import AppKit
 import ClementineCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Audio → video with a moving waveform, bars, circle or spectrogram.
 struct VisualizerDialog: View {
@@ -28,6 +29,7 @@ struct VisualizerDialog: View {
     @AppStorage("tool.visualizer.shape") var shape = VisualizerOptions.Shape.landscape.rawValue
     @AppStorage("tool.visualizer.background") var background = "blurred"
     @AppStorage("tool.visualizer.color") var colorIndex = 1
+    @AppStorage("tool.visualizer.picture") var picturePath = ""
     @State var title: String
 
     init(items: [InputItem], run: @escaping (ToolOptions, [InputItem]) -> Void, cancel: @escaping () -> Void) {
@@ -48,8 +50,17 @@ struct VisualizerDialog: View {
                 Text("Colour").frame(width: 80, alignment: .leading)
                 Swatches(colors: Self.colors, selection: colorBinding)
             }
-            Picker("Background", selection: $background) {
-                ForEach(Self.backgrounds) { Text($0.title).tag($0.id) }
+            HStack {
+                Picker("Background", selection: $background) {
+                    ForEach(Self.backgrounds) { Text($0.title).tag($0.id) }
+                    Text(picturePath.isEmpty ? "A picture…" : (picturePath as NSString).lastPathComponent).tag("picture")
+                }
+                if background == "picture" {
+                    Button("Choose…") { choosePicture() }
+                }
+            }
+            .onChange(of: background) { _, value in
+                if value == "picture" && picturePath.isEmpty { choosePicture() }
             }
             Picker("Size", selection: $shape) {
                 ForEach(VisualizerOptions.Shape.allCases, id: \.self) { Text($0.displayName).tag($0.rawValue) }
@@ -66,11 +77,29 @@ struct VisualizerDialog: View {
                 set: { c in colorIndex = Self.colors.firstIndex(of: c) ?? 1 })
     }
 
+    private func choosePicture() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.prompt = "Use Picture"
+        if panel.runModal() == .OK, let url = panel.url {
+            picturePath = url.path
+        } else if picturePath.isEmpty {
+            background = "blurred"
+        }
+    }
+
+    private var chosenBackground: VisualizerOptions.Background {
+        if background == "picture", !picturePath.isEmpty, FileManager.default.fileExists(atPath: picturePath) {
+            return .image(URL(fileURLWithPath: picturePath))
+        }
+        return Self.backgrounds.first { $0.id == background }?.value ?? .blurredCover
+    }
+
     private func start() {
         let options = VisualizerOptions(
             style: VisualizerOptions.Style(rawValue: style) ?? .waveform,
             color: colorBinding.wrappedValue,
-            background: Self.backgrounds.first { $0.id == background }?.value ?? .blurredCover,
+            background: chosenBackground,
             title: title,
             shape: VisualizerOptions.Shape(rawValue: shape) ?? .landscape)
         run(.visualizer(options), items)
