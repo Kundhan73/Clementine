@@ -9,15 +9,16 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
+  # Static ffmpeg/ffprobe. Cached by the build script's hash; never cancelled
+  # mid-build (a newer run waits for it and then hits the cache).
   ffmpeg:
     name: ffmpeg (cached)
     runs-on: macos-15
     timeout-minutes: 150
+    concurrency:
+      group: ffmpeg-build
+      cancel-in-progress: false
     outputs:
       key: ${{ steps.key.outputs.key }}
     env:
@@ -44,10 +45,59 @@ jobs:
         if: failure()
         run: scripts/ci/report-failure.sh ffmpeg
 
+  # Compile, unit tests, UI snapshots: fast feedback, independent of ffmpeg.
+  app:
+    name: compile, test, snapshots
+    runs-on: macos-15
+    timeout-minutes: 45
+    concurrency:
+      group: app-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Compile
+        run: |
+          echo "::add-matcher::.github/swift-problem-matcher.json"
+          scripts/ci/step.sh compile swift build -c release
+      - name: Unit tests
+        run: |
+          echo "::add-matcher::.github/swift-problem-matcher.json"
+          scripts/ci/step.sh test swift test -c release
+      - name: Bundle (without ffmpeg)
+        env:
+          OUT: build/app-lite
+        run: scripts/ci/step.sh bundle scripts/make-app.sh
+      - name: Self-test (idle footprint)
+        run: scripts/ci/step.sh selftest build/app-lite/Clementine.app/Contents/MacOS/Clementine --self-test
+      - name: Render UI snapshots
+        run: scripts/ci/step.sh snapshots build/app-lite/Clementine.app/Contents/MacOS/Clementine --render-snapshots build/snapshots
+      - name: Publish snapshots (ci-snapshots pre-release)
+        run: |
+          ls build/snapshots
+          if ! gh release view ci-snapshots >/dev/null 2>&1; then
+            gh release create ci-snapshots --prerelease --title "CI snapshots" \
+              --notes "Offscreen UI renders from CI, for review. Not an app release."
+          fi
+          gh release upload ci-snapshots build/snapshots/*.png --clobber
+      - name: Report failure
+        if: failure()
+        run: scripts/ci/report-failure.sh app
+
+  # Full end-to-end tests with ffmpeg, then the release bundle.
   build:
-    needs: ffmpeg
+    needs: [ffmpeg, app]
     runs-on: macos-15
     timeout-minutes: 60
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     env:
       GH_TOKEN: ${{ github.token }}
       FFMPEG_DIST: ${{ github.workspace }}/build/ffmpeg-dist
@@ -60,17 +110,9 @@ jobs:
           path: build/ffmpeg-dist
           key: ${{ needs.ffmpeg.outputs.key }}
           fail-on-cache-miss: true
-      - name: Toolchain
-        run: |
-          sw_vers
-          xcodebuild -version
-          swift --version
-          cat build/ffmpeg-dist/BUILDINFO.txt
-      - name: Compile
-        run: |
-          echo "::add-matcher::.github/swift-problem-matcher.json"
-          scripts/ci/step.sh compile swift build -c release
-      - name: Unit and end-to-end tests
+      - name: ffmpeg build info
+        run: cat build/ffmpeg-dist/BUILDINFO.txt
+      - name: End-to-end tests (with ffmpeg)
         run: |
           echo "::add-matcher::.github/swift-problem-matcher.json"
           scripts/ci/step.sh test swift test -c release
@@ -92,16 +134,6 @@ jobs:
           plutil -p "$app/Contents/Info.plist" | head -40
       - name: Self-test (footprint, smoke job)
         run: scripts/ci/step.sh selftest build/app/Clementine.app/Contents/MacOS/Clementine --self-test
-      - name: Render UI snapshots
-        run: scripts/ci/step.sh snapshots build/app/Clementine.app/Contents/MacOS/Clementine --render-snapshots build/snapshots
-      - name: Publish snapshots (ci-snapshots pre-release)
-        run: |
-          ls build/snapshots
-          if ! gh release view ci-snapshots >/dev/null 2>&1; then
-            gh release create ci-snapshots --prerelease --title "CI snapshots" \
-              --notes "Offscreen UI renders from CI, for review. Not an app release."
-          fi
-          gh release upload ci-snapshots build/snapshots/*.png --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: Clementine

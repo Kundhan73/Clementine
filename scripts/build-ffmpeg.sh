@@ -69,6 +69,10 @@ unset CPATH LIBRARY_PATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH
 log() { printf '\n==> %s\n' "$*"; }
 
 mkdir -p "$PREFIX" "$SRC" "$DL"
+# Checksums of everything downloaded, printed at the end (also on failure)
+# so they can be pinned in scripts/ffmpeg-sources.sha256.
+: > "$WORK/sources.sha256"
+trap 'echo; echo "==> source checksums"; cat "$WORK/sources.sha256"' EXIT
 
 fetch() { # name filename urls...
   local name="$1" file="$2"; shift 2
@@ -86,6 +90,7 @@ fetch() { # name filename urls...
   local got want
   got="$(shasum -a 256 "$dest" | awk '{print $1}')"
   want="$(awk -v f="$file" '$2==f {print $1}' "$SUMS" 2>/dev/null || true)"
+  echo "$got  $file" >> "$WORK/sources.sha256"
   if [ -z "$want" ]; then
     echo "warning: UNPINNED $got  $file (add to scripts/ffmpeg-sources.sha256)"
   elif [ "$got" != "$want" ]; then
@@ -173,6 +178,7 @@ log "ffmpeg $FFMPEG_VER"
     --pkg-config="$WORK/tools/pkg-config" --pkg-config-flags=--static \
     --extra-cflags="-I$PREFIX/include -mmacosx-version-min=14.0" \
     --extra-ldflags="-L$PREFIX/lib -mmacosx-version-min=14.0 -Wl,-dead_strip" \
+    --extra-libs="-liconv" \
     --disable-autodetect --enable-static --disable-shared --enable-pthreads \
     --disable-network --disable-indevs --disable-outdevs --disable-ffplay \
     --disable-doc --disable-debug \
