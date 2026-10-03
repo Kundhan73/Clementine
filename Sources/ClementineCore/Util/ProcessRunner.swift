@@ -13,9 +13,11 @@ public struct ProcessResult: Sendable {
 /// Runs helper processes (ffmpeg, ditto, bsdtar…) without blocking threads,
 /// streaming stdout lines to a callback and terminating on task cancellation.
 public enum ProcessRunner {
+    /// - Parameter stdoutFile: write stdout to this file instead of collecting it.
     public static func run(_ executable: URL, _ arguments: [String],
                            currentDirectory: URL? = nil,
                            environment: [String: String]? = nil,
+                           stdoutFile: URL? = nil,
                            onStdoutLine: (@Sendable (String) -> Void)? = nil) async throws -> ProcessResult {
         let process = Process()
         process.executableURL = executable
@@ -24,13 +26,24 @@ public enum ProcessRunner {
         if let environment { process.environment = environment }
         process.standardInput = FileHandle.nullDevice
         let out = Pipe(), err = Pipe()
-        process.standardOutput = out
+        var outFile: FileHandle?
+        if let stdoutFile {
+            _ = FileManager.default.createFile(atPath: stdoutFile.path, contents: nil)
+            outFile = try FileHandle(forWritingTo: stdoutFile)
+            process.standardOutput = outFile
+        } else {
+            process.standardOutput = out
+        }
+        defer { try? outFile?.close() }
         process.standardError = err
 
         let collector = OutputCollector(onLine: onStdoutLine)
-        out.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty { handle.readabilityHandler = nil } else { collector.appendOut(data) }
+        let collectsStdout = stdoutFile == nil
+        if collectsStdout {
+            out.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty { handle.readabilityHandler = nil } else { collector.appendOut(data) }
+            }
         }
         err.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
@@ -56,7 +69,7 @@ public enum ProcessRunner {
         // Drain whatever is left in the pipes.
         out.fileHandleForReading.readabilityHandler = nil
         err.fileHandleForReading.readabilityHandler = nil
-        if let rest = try? out.fileHandleForReading.readToEnd() { collector.appendOut(rest) }
+        if collectsStdout, let rest = try? out.fileHandleForReading.readToEnd() { collector.appendOut(rest) }
         if let rest = try? err.fileHandleForReading.readToEnd() { collector.appendErr(rest) }
         collector.flush()
         if Task.isCancelled { throw CancellationError() }
