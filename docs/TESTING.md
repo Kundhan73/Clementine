@@ -63,6 +63,21 @@ On first launch a welcome window explains the gesture.
 Each editor saves a new file next to the original; the original is never
 changed. Esc or Cancel closes without saving.
 
+## Video and audio editors: ⇧⌥-drag a video or a song
+- **Trim**: drag the yellow ends (or press I and O while playing), Space plays.
+  Try **Fast** and **Precise** on a video; on a song try **Trim Silence** and
+  the fades.
+- **Crop** a video: same box as for photos; the sound is kept.
+- **Split**: press M to drop markers where you want cuts, or pick equal parts.
+- **Snapshot**: step with ← → to the frame you want, press Return; repeat.
+- **Redact** a video: drag a box over a face or a number plate; use
+  **Starts Here / Ends Here** to limit when it's hidden.
+- **Bleep**: drag across the waveform over a word; **Preview** plays it.
+- **Visualizer** (songs): pick a style and colour, **Create Video**.
+- **Channels**: try **Preview** before applying.
+- Settings → **Wheel**: hide a format you never use, drag another to the top,
+  then shift-drag a file and check the wheel changed.
+
 ## Other ways in
 - Drop files on the menu-bar icon: the wheel appears; click a format.
 - Menu-bar icon → **Convert Files…** → pick files → click a format.

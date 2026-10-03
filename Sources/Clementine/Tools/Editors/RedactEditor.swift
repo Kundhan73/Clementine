@@ -198,6 +198,9 @@ struct RedactCanvas: NSViewRepresentable {
 
     func makeNSView(context: Context) -> RedactCanvasView {
         let view = RedactCanvasView()
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.image)
+        view.setAccessibilityLabel("Picture. Drag to cover an area.")
         view.model = model
         return view
     }
@@ -245,10 +248,10 @@ struct RedactEditor: View {
                     .frame(width: 140)
                     .onSubmit { model.findMatches() }
                 Spacer()
-                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward").accessibilityLabel("Undo") }
                     .keyboardShortcut("z", modifiers: .command)
                     .disabled(!model.canUndo)
-                Button { model.deleteSelected() } label: { Image(systemName: "trash") }
+                Button { model.deleteSelected() } label: { Image(systemName: "trash").accessibilityLabel("Delete") }
                     .disabled(model.selected == nil)
             }
             .padding(10)

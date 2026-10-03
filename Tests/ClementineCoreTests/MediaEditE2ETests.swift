@@ -153,7 +153,8 @@ final class MediaEditE2ETests: XCTestCase {
         let gap = try await maxVolume(silent, from: 1.2, length: 0.6)
         let kept = try await maxVolume(silent, from: 2.5, length: 0.5)
         XCTAssertLessThan(gap, -50, "bleeped part should be silent, got \(gap) dB")
-        XCTAssertGreaterThan(kept, -15, "the rest should stay, got \(kept) dB")
+        // ffmpeg's sine source is 1/8 of full scale, × 0.5 here: about −24 dB.
+        XCTAssertGreaterThan(kept, -30, "the rest should stay, got \(kept) dB")
 
         let beeped = try await export(.bleep, input, .bleep(BleepOptions(intervals: [1...2], sound: .tone(frequency: 1000))))
         let beep = try await maxVolume(beeped, from: 1.2, length: 0.6)

@@ -34,8 +34,10 @@ curl -fsSL https://raw.githubusercontent.com/Kundhan73/Clementine/main/scripts/i
 | 0.1 Shift-drag wheel + image conversions | ✅ done |
 | 0.2 All conversions (audio, video, documents, subtitles, archives) | ✅ done (v0.2.0) |
 | 0.3 Instant and dialog tools | ✅ done (v0.3.0) |
-| 0.4 Image and PDF editors | ⏳ |
-| 0.5 Media editors | ⏳ |
+| 0.4 Image and PDF editors | ✅ done (v0.4.0) |
+| 0.5 Media editors | 🔨 first version in v0.4.0 |
 | 1.0 Polish and performance | ⏳ |
 
-See [docs/SPEC.md](docs/SPEC.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+How to use it: [docs/USER_GUIDE.md](docs/USER_GUIDE.md). Testing checklist:
+[docs/TESTING.md](docs/TESTING.md). Design: [docs/SPEC.md](docs/SPEC.md) and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

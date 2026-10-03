@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0
+Editors (hold ⇧ Shift + ⌥ Option while dragging, then pick a tool):
+- **Photos**: **Crop** (aspect presets, exact pixels), **Adjust** (exposure,
+  contrast, colour, sharpness, grain, vignette… with before/after),
+  **Annotate** (arrows, boxes, pen, highlighter, text, numbered markers),
+  **Redact** (blur, pixelate or black out; finds faces and text, or a word you
+  type), **Background** (frame on a colour or gradient, or cut out the
+  subject), **Collage** (grid, row, column, featured).
+- **PDF**: **Organize** pages (reorder, rotate, duplicate, delete, insert).
+- **Metadata** for any file: see everything stored in it, edit the title and
+  author, or remove it all.
+- **Video and audio** (first version): **Trim** (fast or frame-exact, fades,
+  trim silence), **Crop** video, **Split** at markers, **Snapshot** (save a
+  frame), **Redact** video areas for a time range, **Bleep**, and
+  **Visualizer** (turn audio into a video).
+- **Channels** has a Preview button.
+- **Settings → Wheel**: hide formats and tools you never use and put the rest
+  in your own order, per kind of file.
+- Optional once-a-day update check (off unless you turn it on).
+
 ## 0.3.0
 Tools (hold ⇧ Shift + ⌥ Option while dragging):
 - **Compress** images, videos, audio and PDFs: High / Medium / Small,

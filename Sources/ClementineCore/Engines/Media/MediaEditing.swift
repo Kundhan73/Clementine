@@ -220,9 +220,10 @@ public enum MediaEditing {
             let length = (duration ?? intervals.last!.upperBound) + 1
             let format = "aformat=sample_fmts=fltp:sample_rates=\(rate):channel_layouts=\(layout)"
             let f = Int(max(100, min(8000, frequency)).rounded())
+            // ffmpeg's sine source plays at 1/8 of full scale, hence the 8×.
             return "[0:a:0]\(format),volume=volume=0:enable='\(expr)'[m];" +
                 "sine=frequency=\(f):sample_rate=\(rate):duration=\(seconds(length)),\(format)," +
-                "volume=volume=0:enable='not(\(expr))',volume=\(String(format: "%.3f", max(0, min(1, options.level))))[t];" +
+                "volume=volume=0:enable='not(\(expr))',volume=\(String(format: "%.3f", 8 * max(0, min(1, options.level))))[t];" +
                 "[m][t]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]"
         }
     }
@@ -259,40 +260,44 @@ public enum MediaEditing {
 
     // MARK: Visualizer
 
-    /// Filter graph for the visualizer. Inputs: 0 = background picture
-    /// (looped), 1 = audio, 2 (optional) = title overlay, then the circle
-    /// style's two remap tables. Ends in `[v]`.
+    /// Filter graph for the visualizer. Inputs: 0 = background picture (one
+    /// frame, looped in memory), 1 = audio, 2 (optional) = title layer (one
+    /// frame, repeated by overlay), then the circle style's two remap tables.
+    /// Ends in `[v]`.
     public static func visualizerGraph(_ options: VisualizerOptions, hasOverlay: Bool) -> String {
         let (W, H) = options.shape.size
         let color = options.color.ffmpegHex
+        func even(_ v: Int) -> Int { v - v % 2 }
         // showwaves/showfreqs draw on a transparent canvas.
-        var chain: [String] = []
+        var chain = ["[0:v]loop=loop=-1:size=1:start=0[back]"]
         switch options.style {
         case .waveform:
-            let h = H / 3 - (H / 3) % 2
-            chain.append("[1:a:0]aformat=channel_layouts=mono,showwaves=s=\(W)x\(h):mode=cline:rate=30:colors=\(color)" +
+            chain.append("[1:a:0]aformat=channel_layouts=mono,showwaves=s=\(W)x\(even(H / 3)):mode=cline:rate=30:colors=\(color)" +
                          ":scale=sqrt:draw=full,format=rgba[viz]")
-            chain.append("[0:v][viz]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[bg]")
+            chain.append("[back][viz]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1[bg]")
         case .bars:
-            let w = W * 4 / 5 - (W * 4 / 5) % 2, h = H * 2 / 5 - (H * 2 / 5) % 2
-            chain.append("[1:a:0]aformat=channel_layouts=mono,showfreqs=s=\(w)x\(h):mode=bar:ascale=log:fscale=log" +
-                         ":win_size=2048:colors=\(color),fps=30,format=rgba[viz]")
-            chain.append("[0:v][viz]overlay=x=(W-w)/2:y=H-h-H/8:shortest=1[bg]")
+            chain.append("[1:a:0]aformat=channel_layouts=mono,showfreqs=s=\(even(W * 4 / 5))x\(even(H * 2 / 5)):mode=bar" +
+                         ":ascale=log:fscale=log:win_size=2048:rate=30:colors=\(color),format=rgba[viz]")
+            chain.append("[back][viz]overlay=x=(W-w)/2:y=H-h-H/8:shortest=1[bg]")
         case .circle:
             let side = circleSide(options.shape)
             let input = hasOverlay ? 3 : 2
             chain.append("[1:a:0]aformat=channel_layouts=mono,showwaves=s=\(circleSource.width)x\(circleSource.height)" +
                          ":mode=cline:rate=30:colors=\(color):scale=sqrt:draw=full,format=rgba,pad=w=iw:h=ih+2:color=black@0[wave]")
             chain.append("[wave][\(input):v][\(input + 1):v]remap,format=rgba[viz]")
-            chain.append("[0:v][viz]overlay=x=(W-\(side))/2:y=(H-\(side))/2:shortest=1[bg]")
+            chain.append("[back][viz]overlay=x=(W-\(side))/2:y=(H-\(side))/2:shortest=1[bg]")
         case .spectrogram:
-            let h = H * 11 / 20 - (H * 11 / 20) % 2
-            chain.append("[1:a:0]showspectrum=s=\(W)x\(h):mode=combined:slide=scroll:color=intensity:scale=cbrt:legend=0," +
-                         "fps=30,format=rgba[viz]")
-            chain.append("[0:v][viz]overlay=x=0:y=H-h:shortest=1[bg]")
+            // Drawn narrow and scaled up so it scrolls across in seconds, not
+            // minutes; its black floor is keyed out to show the background.
+            let h = even(H * 11 / 20)
+            chain.append("[1:a:0]showspectrum=s=\(even(W / 3))x\(even(h / 2)):mode=combined:slide=scroll:fscale=log" +
+                         ":color=fire:scale=cbrt:legend=0:fps=30,scale=\(W):\(h):flags=bicubic,format=rgba," +
+                         "colorkey=0x000000:0.12:0.25[viz]")
+            chain.append("[back][viz]overlay=x=0:y=H-h:shortest=1[bg]")
         }
         if hasOverlay {
-            chain.append("[bg][2:v]overlay=x=0:y=0:shortest=1[top]")
+            // The title layer is one frame; overlay repeats it to the end.
+            chain.append("[bg][2:v]overlay=x=0:y=0:eof_action=repeat[top]")
             chain.append("[top]fps=30,format=yuv420p[v]")
         } else {
             chain.append("[bg]fps=30,format=yuv420p[v]")
@@ -349,9 +354,8 @@ public enum MediaEditing {
     public static func visualize(audio: URL, background: URL, overlay: URL?, options: VisualizerOptions, duration: Double,
                                  workDirectory: URL, to output: URL, settings: ConversionSettings,
                                  progress: @escaping @Sendable (Double) -> Void) async throws {
-        var inputs = ["-loop", "1", "-framerate", "30", "-i", MediaEngine.ffmpegPath(background),
-                      "-i", MediaEngine.ffmpegPath(audio)]
-        if let overlay { inputs += ["-loop", "1", "-framerate", "30", "-i", MediaEngine.ffmpegPath(overlay)] }
+        var inputs = ["-framerate", "30", "-i", MediaEngine.ffmpegPath(background), "-i", MediaEngine.ffmpegPath(audio)]
+        if let overlay { inputs += ["-framerate", "30", "-i", MediaEngine.ffmpegPath(overlay)] }
         if options.style == .circle {
             let maps = circleMaps(side: circleSide(options.shape))
             let xmap = workDirectory.appendingPathComponent("xmap.pgm"), ymap = workDirectory.appendingPathComponent("ymap.pgm")

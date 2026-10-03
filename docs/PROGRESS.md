@@ -31,10 +31,10 @@ compaction.
 | 0.0 Pipeline | ✅ | static LGPL ffmpeg cached; bundle verified (`codesign --verify --deep --strict`, `otool -L` system-only) |
 | 0.1 Core gesture | ✅ | wheel, HUD, image matrix, settings, onboarding, login item |
 | 0.2 All conversions | ✅ v0.2.0 | 490 pairs; 465 e2e-tested on CI (RAW/AMR/RAR have no fixture generator) |
-| 0.3 Instant + dialog tools | ✅ tests green | released together with the first editors |
-| 0.4 Image + PDF editors | 🔨 | code written; compile/snapshot review in progress |
-| 0.5 Media editors | ⏳ | |
-| 1.0 Polish | ⏳ | |
+| 0.3 Instant + dialog tools | ✅ v0.3.0 | |
+| 0.4 Image + PDF editors | ✅ v0.4.0 | export tests + snapshot review done |
+| 0.5 Media editors | 🔨 | written, engine unit/e2e tests; media snapshots render in the `build` job |
+| 1.0 Polish | 🔨 | Wheel settings, daily update option, Channels preview, ⌃⌥C Finder hotkey, a11y labels, user guide |
 
 ## Log
 
@@ -76,7 +76,7 @@ compaction.
   (EBU R128 two-pass), Mute, Extract Audio, Channels.
 - Dialogs in a floating panel near the pointer; settings remembered.
 
-### 0.4 editors (in progress)
+### 0.4 editors (released in v0.4.0)
 - Neutral models in `Editing/EditorModels.swift`; rendering in
   `Engines/Image/ImageEditing.swift` (crop, annotations, redaction with
   Vision face/text search, frame/background with subject cut-out, collage)
@@ -88,14 +88,29 @@ compaction.
   close.
 - Snapshots render every editor with generated sample photos and a PDF.
 
+### 0.5 media editors (in progress)
+- Core: `MediaEditing` (trim fast/precise + fades, video crop, frame
+  snapshot, time-ranged video redaction, bleep, visualizer incl. a "circle"
+  style made with ffmpeg `remap` and generated PGM tables), `MediaAnalysis`
+  (showwavespic waveform, silencedetect, preview proxies), `VisualizerArt`.
+- App: `MediaSession` (AVPlayer; ffmpeg proxy when AVFoundation can't play
+  the file; periodic observer only while an editor is open), `Timeline`,
+  editors in `Tools/Media/`. Keys: Space, ←/→ (⇧ = 1 s), I/O, M, C.
+- Snapshot run `--render-snapshots <dir> --only media` (needs ffmpeg, so it
+  runs in the `build` job and uploads `media-*.png`).
+
+### Decisions
+- Finder icon progress (SPEC 1.3) is not published: outputs are hidden temp
+  files until they're complete (atomic, never half-written), so there's no
+  visible icon to decorate. The HUD shows progress instead.
+- Daily update check uses `NSBackgroundActivityScheduler` (system-scheduled)
+  and is off by default; no timers of our own run while idle.
+
 ## Known open questions
 - HEIC encode on CI VMs (no media engine): probed at runtime; tests skip it.
 - RAW/AMR/RAR sources can't be generated on CI; covered by decoder support
   only.
 
 ## Next
-- Get the editors commit green; review `editor-*` snapshots; release.
-- 0.5 media editors (Trim with waveform, Video Crop, Split markers, Snapshot,
-  Video Redact, Channels preview, Bleep, Visualizer).
-- 1.0 polish: wheel customization, keyboard navigation, update check, perf
-  audit, accessibility, user guide.
+- Review `media-*` snapshots and fix what looks wrong; media e2e tests green.
+- 1.0: perf audit (idle footprint after using editors), final docs, v1.0.0.

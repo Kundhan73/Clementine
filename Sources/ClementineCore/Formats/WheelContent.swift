@@ -98,7 +98,13 @@ public enum WheelContent {
                 guard item.kind == kind || kind == .folder else { continue }
                 for f in ConversionMatrix.allTargets(for: item) where !seen.contains(f) { seen.append(f) }
             }
-            return seen.map(WheelChip.format)
+            // The kind's usual targets first, in their usual order.
+            let usual = peerTargets(for: kind)
+            let ranked = seen.enumerated().sorted { a, b in
+                let ra = usual.firstIndex(of: a.element) ?? Int.max, rb = usual.firstIndex(of: b.element) ?? Int.max
+                return ra != rb ? ra < rb : a.offset < b.offset
+            }
+            return ranked.map { WheelChip.format($0.element) }
         case .tools:
             var tools = toolOrder[kind] ?? []
             for t in multiInputTools where t.kinds.contains(kind) && !tools.contains(t) { tools.append(t) }

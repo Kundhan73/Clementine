@@ -585,6 +585,9 @@ struct VideoRegionCanvas: NSViewRepresentable {
 
     func makeNSView(context: Context) -> VideoRegionCanvasView {
         let view = VideoRegionCanvasView()
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.image)
+        view.setAccessibilityLabel("Video. Drag to cover an area from the current time on.")
         view.model = model
         return view
     }
@@ -630,10 +633,10 @@ struct VideoRedactEditor: View {
                 Button("Ends Here") { model.updateSelected { $0.end = session.currentTime } }
                 Button("Whole Video") { model.updateSelected { $0.start = nil; $0.end = nil } }
                 Spacer()
-                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward").accessibilityLabel("Undo") }
                     .keyboardShortcut("z", modifiers: .command)
                     .disabled(!model.canUndo)
-                Button { model.deleteSelected() } label: { Image(systemName: "trash") }
+                Button { model.deleteSelected() } label: { Image(systemName: "trash").accessibilityLabel("Delete") }
                     .disabled(model.selected == nil)
             }
             .disabled(session.state != .ready)
@@ -738,7 +741,7 @@ struct BleepEditor: View {
                             HStack(spacing: 6) {
                                 Text("\(MediaSession.clock(r.lowerBound)) – \(MediaSession.clock(r.upperBound))")
                                     .font(.callout.monospacedDigit())
-                                Button { remove(index) } label: { Image(systemName: "xmark.circle.fill") }
+                                Button { remove(index) } label: { Image(systemName: "xmark.circle.fill").accessibilityLabel("Remove") }
                                     .buttonStyle(.plain)
                                     .foregroundStyle(.secondary)
                             }

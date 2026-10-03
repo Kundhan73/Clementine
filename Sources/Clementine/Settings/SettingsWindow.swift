@@ -68,6 +68,8 @@ struct GeneralSettingsView: View {
     @AppStorage(PrefKey.wheelSize) private var wheelSize = WheelSize.medium.rawValue
     @AppStorage(PrefKey.completionSound) private var sound = true
     @AppStorage(PrefKey.revealInFinder) private var reveal = false
+    @AppStorage(PrefKey.finderHotKey) private var hotKey = false
+    @AppStorage(PrefKey.notifyLongJobs) private var notify = false
     @State private var openAtLogin = LoginItem.isEnabled
 
     var body: some View {
@@ -91,6 +93,15 @@ struct GeneralSettingsView: View {
             Section {
                 Toggle("Play a sound when files are ready", isOn: $sound)
                 Toggle("Show converted files in Finder", isOn: $reveal)
+                Toggle("Notify me when a long conversion finishes", isOn: $notify)
+                    .onChange(of: notify) { _, on in if on { JobNotifications.shared.apply(ask: true) } }
+            }
+            Section {
+                Toggle("⌃⌥C shows the wheel for the files selected in Finder", isOn: $hotKey)
+                    .onChange(of: hotKey) { _, _ in FinderHotKey.shared.apply() }
+                Text("The first time, macOS asks whether Clementine may control Finder (to read the selection).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -314,7 +325,7 @@ struct WheelSettingsView: View {
                     HStack(spacing: 8) {
                         Toggle("", isOn: shown(chip)).labelsHidden().toggleStyle(.checkbox)
                         Text(chip.title).fontWeight(.medium)
-                        Text(chip.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(detail(chip)).foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
                         Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
                     }
@@ -343,6 +354,14 @@ struct WheelSettingsView: View {
         hidden = Set(UserDefaults.standard.stringArray(forKey: Preferences.wheelKey(PrefKey.hiddenChips, kind: category.kind,
                                                                                       mode: category.mode)) ?? [])
         order = Preferences.chipOrder(kind: category.kind, mode: category.mode)
+    }
+
+    /// The caption without the repeated name ("JPG · small" → "small").
+    private func detail(_ chip: WheelChip) -> String {
+        let caption = chip.caption
+        if caption == chip.title { return "" }
+        if caption.hasPrefix(chip.title + " · ") { return String(caption.dropFirst(chip.title.count + 3)) }
+        return caption
     }
 
     private func shown(_ chip: WheelChip) -> Binding<Bool> {

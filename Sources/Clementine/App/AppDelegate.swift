@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         LoginItem.applyDefaultOnFirstLaunch()
         Updater.shared.applySchedule()
+        FinderHotKey.shared.apply()
+        JobNotifications.shared.apply()
         if !Preferences.onboardingDone {
             OnboardingWindowController.shared.show()
         }

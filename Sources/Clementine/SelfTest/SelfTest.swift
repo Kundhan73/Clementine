@@ -3,26 +3,42 @@ import ClementineCore
 import Darwin
 
 /// `--self-test`: launches normally (status item, drag monitor), waits until
-/// idle, reports the physical memory footprint, runs one real conversion
-/// through the job queue, reports again and exits non-zero on failure or if
-/// the idle footprint is over budget. CI runs this against the bundled app.
+/// idle, measures CPU use over 5 idle seconds and the physical memory
+/// footprint, runs one real conversion through the job queue, measures again
+/// and exits non-zero on failure or if anything is over budget (SPEC §5:
+/// 0 % CPU and ≤ 35 MB when idle). CI runs this against the bundled app.
 @MainActor
 enum SelfTest {
-    static let idleBudgetMB = 40.0
+    static let idleBudgetMB = 35.0
+    static let idleCPUBudgetPercent = 1.0
     static let afterJobBudgetMB = 150.0
 
     static func start() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            MainActor.assumeIsolated { runChecks() }
+            MainActor.assumeIsolated {
+                let start = cpuSeconds()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    MainActor.assumeIsolated { runChecks(idleCPU: (cpuSeconds() - start) / 5 * 100) }
+                }
+            }
         }
     }
 
-    private static func runChecks() {
+    /// User + system CPU time this process has used, in seconds.
+    static func cpuSeconds() -> Double {
+        var usage = rusage()
+        getrusage(RUSAGE_SELF, &usage)
+        return Double(usage.ru_utime.tv_sec) + Double(usage.ru_utime.tv_usec) / 1e6 +
+            Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1e6
+    }
+
+    private static func runChecks(idleCPU: Double) {
         let idle = Footprint.megabytes()
+        print(String(format: "selftest: idle_cpu_percent=%.2f budget=%.1f", idleCPU, idleCPUBudgetPercent))
         print(String(format: "selftest: idle_footprint_mb=%.1f budget_mb=%.0f", idle, idleBudgetMB))
         print("selftest: ffmpeg=\(FFmpegLocator.ffmpeg?.path ?? "missing")")
         Task { @MainActor in
-            var ok = idle > 0 && idle <= idleBudgetMB
+            var ok = idle > 0 && idle <= idleBudgetMB && idleCPU <= idleCPUBudgetPercent
             do {
                 let output = try await convertSample()
                 print("selftest: converted \(output.lastPathComponent)")
@@ -35,8 +51,8 @@ enum SelfTest {
             let after = Footprint.megabytes()
             print(String(format: "selftest: after_job_footprint_mb=%.1f budget_mb=%.0f", after, afterJobBudgetMB))
             if after > afterJobBudgetMB { ok = false }
-            print(String(format: "::notice title=Self-test::idle %.1f MB, after a conversion %.1f MB (%@)",
-                         idle, after, ok ? "PASS" : "FAIL"))
+            print(String(format: "::notice title=Self-test::idle %.1f MB and %.2f%% CPU, after a conversion %.1f MB (%@)",
+                         idle, idleCPU, after, ok ? "PASS" : "FAIL"))
             print("selftest: \(ok ? "PASS" : "FAIL")")
             fflush(stdout)
             exit(ok ? 0 : 1)

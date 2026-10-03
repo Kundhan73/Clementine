@@ -226,6 +226,9 @@ struct AnnotationCanvas: NSViewRepresentable {
 
     func makeNSView(context: Context) -> AnnotationCanvasView {
         let view = AnnotationCanvasView()
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.image)
+        view.setAccessibilityLabel("Picture with drawings. Drag to draw with the chosen tool.")
         view.model = model
         view.preview = preview
         view.imageSize = model.imageSize
@@ -271,13 +274,13 @@ struct AnnotateEditor: View {
                 }
                 Toggle("Fill", isOn: $model.filled).toggleStyle(.checkbox)
                 Spacer()
-                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward").accessibilityLabel("Undo") }
                     .keyboardShortcut("z", modifiers: .command)
                     .disabled(!model.canUndo)
-                Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward").accessibilityLabel("Redo") }
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .disabled(!model.canRedo)
-                Button { model.deleteSelected() } label: { Image(systemName: "trash") }
+                Button { model.deleteSelected() } label: { Image(systemName: "trash").accessibilityLabel("Delete") }
                     .disabled(model.selected == nil)
             }
             .padding(10)

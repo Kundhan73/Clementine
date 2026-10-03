@@ -91,9 +91,11 @@ final class JobCenter {
         case .running:
             hud.update(job)
             observeProgress(job)
+            JobNotifications.shared.jobStarted(job)
         case .succeeded(let result):
             finish(job)
             hud.update(job)
+            JobNotifications.shared.jobFinished(job, outputs: result.outputs, failure: nil)
             if !result.outputs.isEmpty {
                 Preferences.addRecent(result.outputs)
                 if Preferences.revealInFinder { NSWorkspace.shared.activateFileViewerSelecting(result.outputs) }
@@ -101,13 +103,15 @@ final class JobCenter {
             if let text = result.text {
                 TextResultPanel.show(title: "Read QR", text: text)
             }
-        case .failed:
+        case .failed(let failure):
             batchFailed = true
             finish(job)
             hud.update(job)
+            JobNotifications.shared.jobFinished(job, outputs: [], failure: failure.message)
         case .cancelled:
             finish(job)
             hud.update(job)
+            JobNotifications.shared.forget(job)
         }
     }
 

@@ -286,13 +286,13 @@ struct TransportBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button { session.step(session.wantsVideo ? -1 : -10) } label: { Image(systemName: "backward.frame") }
+            Button { session.step(session.wantsVideo ? -1 : -10) } label: { Image(systemName: "backward.frame").accessibilityLabel("Back") }
                 .help(session.wantsVideo ? "Previous frame (←)" : "Back 1 s (←)")
             Button { session.togglePlay(from: playFrom?()) } label: {
                 Image(systemName: session.isPlaying ? "pause.fill" : "play.fill").frame(width: 16)
             }
             .help("Play / pause (space)")
-            Button { session.step(session.wantsVideo ? 1 : 10) } label: { Image(systemName: "forward.frame") }
+            Button { session.step(session.wantsVideo ? 1 : 10) } label: { Image(systemName: "forward.frame").accessibilityLabel("Forward") }
                 .help(session.wantsVideo ? "Next frame (→)" : "Forward 1 s (→)")
             Text("\(MediaSession.clock(session.currentTime)) / \(MediaSession.clock(session.duration, precise: false))")
                 .font(.callout.monospacedDigit())

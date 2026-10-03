@@ -29,6 +29,8 @@ enum PrefKey {
     static let onboardingDone = "onboardingDone"
     static let hiddenChips = "hiddenChips"
     static let autoUpdateCheck = "autoUpdateCheck"
+    static let finderHotKey = "finderHotKey"
+    static let notifyLongJobs = "notifyLongJobs"
     static let recentOutputs = "recentOutputs"
 }
 
