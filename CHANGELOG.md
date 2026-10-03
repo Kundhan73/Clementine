@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0
+Video and audio editors (⇧⌥-drag a video or a song):
+- **Trim**: drag the ends or press I / O while playing; **Fast** (instant,
+  no quality loss) or **Precise** (frame-exact); fades; **Trim Silence** for
+  recordings.
+- **Crop** a video (the sound is kept), **Split** at markers you drop with
+  M (or into equal parts), **Snapshot** saves the exact frame you stepped to
+  as a full-size PNG, **Redact** areas of a video for just the seconds you
+  choose.
+- **Bleep**: mark words on the waveform, type exact times, preview, then save
+  with a beep or silence.
+- **Visualizer**: waveform, bars, circle or spectrogram over cover art, a
+  gradient or a picture you choose, with a title; much faster than before.
+- The video editors show the picture straight away; formats macOS can't play
+  (MKV, WebM, OGG…) get a quick preview copy first.
+
 ## 0.4.0
 Editors (hold ⇧ Shift + ⌥ Option while dragging, then pick a tool):
 - **Photos**: **Crop** (aspect presets, exact pixels), **Adjust** (exposure,
@@ -19,6 +35,8 @@ Editors (hold ⇧ Shift + ⌥ Option while dragging, then pick a tool):
 - **Settings → Wheel**: hide formats and tools you never use and put the rest
   in your own order, per kind of file.
 - Optional once-a-day update check (off unless you turn it on).
+- Optional: a notification when a long conversion finishes, and ⌃⌥C to show
+  the wheel for the files selected in Finder (Settings → General).
 
 ## 0.3.0
 Tools (hold ⇧ Shift + ⌥ Option while dragging):

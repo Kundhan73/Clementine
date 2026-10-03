@@ -16,14 +16,34 @@ enum SelfTest {
     /// Settle after launch, then measure an idle window this long.
     static let settleSeconds = 6.0, windowSeconds = 10.0
 
+    /// Main run loop wake-ups during the idle window (diagnostics).
+    nonisolated(unsafe) private static var mainWakeups = 0
+
     static func start() {
         DispatchQueue.main.asyncAfter(deadline: .now() + settleSeconds) {
             MainActor.assumeIsolated {
                 let cpu = cpuSeconds(), wakeups = Footprint.wakeups()
+                let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, 0) { _, _ in
+                    SelfTest.mainWakeups += 1
+                }
+                CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
                 DispatchQueue.main.asyncAfter(deadline: .now() + windowSeconds) {
                     MainActor.assumeIsolated {
+                        CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
                         let perSecond = Double(Footprint.wakeups() - wakeups) / windowSeconds
-                        print(String(format: "selftest: idle_wakeups_per_second=%.1f", perSecond))
+                        print(String(format: "selftest: idle_wakeups_per_second=%.1f main_runloop_wakeups_per_second=%.1f",
+                                     perSecond, Double(mainWakeups) / windowSeconds))
+                        // Any timers still scheduled on the main run loop (should be none of ours).
+                        let description = CFCopyDescription(CFRunLoopGetMain()) as String? ?? ""
+                        var timers: [String] = []
+                        for line in description.split(separator: "\n") where line.contains("CFRunLoopTimer") {
+                            let text = line.trimmingCharacters(in: .whitespaces)
+                            print("selftest: timer \(text.prefix(400))")
+                            if let r = text.range(of: "callout = ") { timers.append(String(text[r.upperBound...].prefix(60))) }
+                            if let r = text.range(of: "interval = ") { timers.append("every " + String(text[r.upperBound...].prefix(12))) }
+                        }
+                        print(String(format: "::notice title=Idle diagnostics::main run loop %.1f wakeups/s; timers: %@",
+                                     Double(mainWakeups) / windowSeconds, timers.isEmpty ? "none" : timers.joined(separator: " | ")))
                         runChecks(idleCPU: (cpuSeconds() - cpu) / windowSeconds * 100, wakeups: perSecond)
                     }
                 }

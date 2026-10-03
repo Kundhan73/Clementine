@@ -33,7 +33,7 @@ compaction.
 | 0.2 All conversions | ✅ v0.2.0 | 490 pairs; 465 e2e-tested on CI (RAW/AMR/RAR have no fixture generator) |
 | 0.3 Instant + dialog tools | ✅ v0.3.0 | |
 | 0.4 Image + PDF editors | ✅ v0.4.0 | export tests + snapshot review done |
-| 0.5 Media editors | 🔨 | written, engine unit/e2e tests; media snapshots render in the `build` job |
+| 0.5 Media editors | ✅ v0.5.0 | engine unit + e2e tests; media snapshots (with ffmpeg) reviewed |
 | 1.0 Polish | 🔨 | Wheel settings, daily update option, Channels preview, ⌃⌥C Finder hotkey, a11y labels, user guide |
 
 ## Log
@@ -88,7 +88,7 @@ compaction.
   close.
 - Snapshots render every editor with generated sample photos and a PDF.
 
-### 0.5 media editors (in progress)
+### 0.5 media editors (released in v0.5.0)
 - Core: `MediaEditing` (trim fast/precise + fades, video crop, frame
   snapshot, time-ranged video redaction, bleep, visualizer incl. a "circle"
   style made with ffmpeg `remap` and generated PGM tables), `MediaAnalysis`
@@ -111,6 +111,20 @@ compaction.
 - RAW/AMR/RAR sources can't be generated on CI; covered by decoder support
   only.
 
+### Lessons from 0.5
+- ffmpeg's `sine` source plays at 1/8 of full scale (tests and the bleep tone
+  must account for it).
+- `showfreqs` needs its own `rate`; a separate `fps` filter after it floods
+  frames. `showspectrum` has an `fps` option.
+- Loop still pictures in memory (`loop` filter, or overlay's default
+  `eof_action=repeat` for a single-frame top layer) instead of `-loop 1`,
+  which decodes the file every frame.
+- Filter graphs can be checked locally: `docker run clem-ffmpeg` (an image
+  with Ubuntu's ffmpeg, built from `swift:6.1-noble` + `apt-get install
+  ffmpeg`). Offscreen snapshots don't capture AVPlayerLayer, so editors show
+  a poster frame under the player.
+
 ## Next
-- Review `media-*` snapshots and fix what looks wrong; media e2e tests green.
-- 1.0: perf audit (idle footprint after using editors), final docs, v1.0.0.
+- Idle wakeups: the self-test reports ~17 wakeups/s on CI; find the source
+  (diagnostic notice lists main run-loop wakeups and timers).
+- 1.0: final docs and v1.0.0.
