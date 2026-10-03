@@ -124,6 +124,13 @@ compaction.
   ffmpeg`). Offscreen snapshots don't capture AVPlayerLayer, so editors show
   a poster frame under the player.
 
+### Process output race (fixed)
+- `ProcessRunner` used to call `readToEnd()` after exit while the pipe's
+  readability handler could still append its last chunk on another thread,
+  so output could be reordered (seen once: ffprobe JSON → "Couldn't read the
+  media information"). Pipes are now drained to EOF by their handlers, in
+  order; `ProcessRunnerTests` covers large interleaved output.
+
 ## Next
 - Idle wakeups: the self-test reports ~17 wakeups/s on CI; find the source
   (diagnostic notice lists main run-loop wakeups and timers).

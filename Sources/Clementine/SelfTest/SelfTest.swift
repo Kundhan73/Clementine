@@ -18,38 +18,59 @@ enum SelfTest {
 
     /// Main run loop wake-ups (diagnostics).
     nonisolated(unsafe) private static var mainWakeups = 0
+    nonisolated(unsafe) private static var eventCounts: [UInt: Int] = [:]
+    nonisolated(unsafe) private static var phaseResults: [String] = []
+    nonisolated(unsafe) private static var extraMonitor: Any?
 
     static func start() {
         DispatchQueue.main.asyncAfter(deadline: .now() + settleSeconds) {
-            MainActor.assumeIsolated {
-                let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, 0) { _, _ in
-                    SelfTest.mainWakeups += 1
+            MainActor.assumeIsolated { measureIdle() }
+        }
+    }
+
+    /// Idle window in phases: the real drag monitor; no monitor; a
+    /// mouse-down-only monitor; and a catch-all monitor that counts which
+    /// events arrive at all. Then the normal checks.
+    private static func measureIdle() {
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, 0) { _, _ in
+            SelfTest.mainWakeups += 1
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+        let cpu = cpuSeconds(), wakeups = Footprint.wakeups()
+        let phase = windowSeconds / 4
+        let monitor = AppDelegate.shared?.dragMonitor
+        let wasRunning = monitor?.isRunning ?? false
+        phaseResults = []
+        func next(_ label: String, then: @escaping @MainActor () -> Void) {
+            mainWakeups = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + phase) {
+                MainActor.assumeIsolated {
+                    SelfTest.phaseResults.append(String(format: "%@ %.1f", label, Double(SelfTest.mainWakeups) / phase))
+                    then()
                 }
-                CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
-                let cpu = cpuSeconds(), wakeups = Footprint.wakeups()
-                // First half with the drag monitor on (normal), second half
-                // with it off, to tell our cost from the system's.
-                let half = windowSeconds / 2
-                DispatchQueue.main.asyncAfter(deadline: .now() + half) {
-                    MainActor.assumeIsolated {
-                        let withMonitor = Double(mainWakeups) / half
-                        mainWakeups = 0
-                        let monitor = AppDelegate.shared?.dragMonitor
-                        let wasRunning = monitor?.isRunning ?? false
-                        monitor?.stop()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + half) {
-                            MainActor.assumeIsolated {
-                                CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
-                                let withoutMonitor = Double(mainWakeups) / half
-                                if wasRunning { monitor?.start() }
-                                let perSecond = Double(Footprint.wakeups() - wakeups) / windowSeconds
-                                print(String(format: "selftest: idle_wakeups_per_second=%.1f main_runloop_with_monitor=%.1f without=%.1f",
-                                             perSecond, withMonitor, withoutMonitor))
-                                print(String(format: "::notice title=Idle diagnostics::main run loop wakeups/s: %.1f with the drag monitor, %.1f without",
-                                             withMonitor, withoutMonitor))
-                                runChecks(idleCPU: (cpuSeconds() - cpu) / windowSeconds * 100, wakeups: perSecond)
-                            }
-                        }
+            }
+        }
+        next("drag monitor") {
+            monitor?.stop()
+            next("none") {
+                extraMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { _ in }
+                next("mouse-down only") {
+                    if let m = extraMonitor { NSEvent.removeMonitor(m) }
+                    extraMonitor = NSEvent.addGlobalMonitorForEvents(matching: .any) { event in
+                        let type = event.type.rawValue
+                        MainActor.assumeIsolated { SelfTest.eventCounts[type, default: 0] += 1 }
+                    }
+                    next("catch-all") {
+                        if let m = extraMonitor { NSEvent.removeMonitor(m) }
+                        extraMonitor = nil
+                        CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+                        if wasRunning { monitor?.start() }
+                        let types = eventCounts.sorted { $0.value > $1.value }.prefix(6)
+                            .map { "type \($0.key)×\($0.value)" }.joined(separator: ", ")
+                        print("::notice title=Idle diagnostics::main run loop wakeups/s: \(phaseResults.joined(separator: " · ")); " +
+                              "events seen: \(types.isEmpty ? "none" : types)")
+                        let perSecond = Double(Footprint.wakeups() - wakeups) / windowSeconds
+                        runChecks(idleCPU: (cpuSeconds() - cpu) / windowSeconds * 100, wakeups: perSecond)
                     }
                 }
             }

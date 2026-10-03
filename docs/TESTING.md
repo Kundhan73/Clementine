@@ -78,6 +78,14 @@ changed. Esc or Cancel closes without saving.
 - Settings → **Wheel**: hide a format you never use, drag another to the top,
   then shift-drag a file and check the wheel changed.
 
+## Optional extras (Settings → General / About)
+- Turn on **⌃⌥C shows the wheel for the files selected in Finder**, select a
+  photo in Finder, press ⌃⌥C. macOS asks once whether Clementine may control
+  Finder; allow it.
+- Turn on **Notify me when a long conversion finishes** and convert a long
+  video: a notification appears when it's done; clicking it shows the file.
+- **Check for updates once a day** (About): leave it on or off as you like.
+
 ## Other ways in
 - Drop files on the menu-bar icon: the wheel appears; click a format.
 - Menu-bar icon → **Convert Files…** → pick files → click a format.
