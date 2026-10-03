@@ -47,7 +47,7 @@ final class WheelContainerView: NSView {
     /// Sizes the disc to the wheel's current layout.
     func layoutDisc() {
         wheel.frame = bounds
-        let r = wheel.layout.discRadius
+        let r = wheel.wheelLayout.discRadius
         let rect = NSRect(x: bounds.midX - r, y: bounds.midY - r, width: 2 * r, height: 2 * r).integral
         backdrop.frame = rect
         backdrop.maskImage = NSImage(size: rect.size, flipped: false) { bounds in
@@ -146,7 +146,7 @@ final class WheelController: NSObject, WheelViewDelegate {
         configureWheel(animated: false)
         panel.alphaValue = 1
         if clickMode {
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(container.wheel)
         } else {

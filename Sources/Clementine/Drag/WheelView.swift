@@ -60,7 +60,7 @@ final class WheelView: NSView {
 
     private(set) var chips: [WheelChip] = []
     private(set) var mode: WheelMode = .convert
-    private(set) var layout = WheelLayout(count: 0)
+    private(set) var wheelLayout = WheelLayout(count: 0)
     private(set) var hovered: Int?
     private var scale: CGFloat = 1
     private var fileIcon: NSImage?
@@ -125,7 +125,7 @@ final class WheelView: NSView {
         self.fileCount = count
         self.scale = scale
         let tools = chips.contains { if case .tool = $0 { return true } else { return false } }
-        layout = WheelLayout(count: chips.count, scale: scale, largeChips: tools)
+        wheelLayout = WheelLayout(count: chips.count, scale: scale, largeChips: tools)
         hovered = nil
         rebuild()
         if animated { animateIn(chipsOnly: true) }
@@ -157,12 +157,12 @@ final class WheelView: NSView {
         content.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         content.frame = bounds
 
-        let discR = layout.discRadius
+        let discR = wheelLayout.discRadius
         disc.frame = bounds
         disc.path = CGPath(ellipseIn: CGRect(x: c.x - discR, y: c.y - discR, width: 2 * discR, height: 2 * discR), transform: nil)
         disc.lineWidth = 1
 
-        let hubR = layout.hubRadius
+        let hubR = wheelLayout.hubRadius
         hub.frame = bounds
         hub.path = CGPath(ellipseIn: CGRect(x: c.x - hubR, y: c.y - hubR, width: 2 * hubR, height: 2 * hubR), transform: nil)
         hub.lineWidth = 1
@@ -196,8 +196,8 @@ final class WheelView: NSView {
 
         chipLayers.forEach { $0.removeFromSuperlayer() }
         chipLayers = chips.enumerated().map { i, chip in
-            let layer = ChipLayer(chip: chip, radius: layout.chipRadius, scale: s, contentsScale: scaleFactor)
-            let p = layout.center(of: i)
+            let layer = ChipLayer(chip: chip, radius: wheelLayout.chipRadius, scale: s, contentsScale: scaleFactor)
+            let p = wheelLayout.center(of: i)
             layer.position = CGPoint(x: c.x + p.x, y: c.y + p.y)
             content.addSublayer(layer)
             return layer
@@ -285,7 +285,7 @@ final class WheelView: NSView {
 
     func hitTest(windowPoint: NSPoint) -> WheelLayout.Hit {
         let p = convert(windowPoint, from: nil)
-        return layout.hitTest(CGPoint(x: p.x - center.x, y: p.y - center.y))
+        return wheelLayout.hitTest(CGPoint(x: p.x - center.x, y: p.y - center.y))
     }
 
     func setHovered(_ index: Int?) {
@@ -396,8 +396,8 @@ final class WheelView: NSView {
         guard let window else { return nil }
         let c = center
         return chips.enumerated().map { i, chip in
-            let p = layout.center(of: i)
-            let r = layout.chipRadius
+            let p = wheelLayout.center(of: i)
+            let r = wheelLayout.chipRadius
             let local = NSRect(x: c.x + p.x - r, y: c.y + p.y - r, width: 2 * r, height: 2 * r)
             let screen = window.convertToScreen(convert(local, to: nil))
             let element = NSAccessibilityElement.element(withRole: .button, frame: screen, label: chip.caption, parent: self)

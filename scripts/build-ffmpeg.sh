@@ -180,7 +180,7 @@ log "ffmpeg $FFMPEG_VER"
     --extra-ldflags="-L$PREFIX/lib -mmacosx-version-min=14.0 -Wl,-dead_strip" \
     --extra-libs="-liconv" \
     --disable-autodetect --enable-static --disable-shared --enable-pthreads \
-    --disable-network --disable-indevs --disable-outdevs --disable-ffplay \
+    --disable-network --disable-indevs --enable-indev=lavfi --disable-outdevs --disable-ffplay \
     --disable-doc --disable-debug \
     --enable-videotoolbox --enable-audiotoolbox \
     --enable-zlib --enable-bzlib --enable-iconv \
