@@ -110,3 +110,46 @@ final class WheelContentTests: XCTestCase {
         XCTAssertFalse(chips.contains(.format(.avif)))
     }
 }
+
+final class WheelLayoutTests: XCTestCase {
+    func testChipsStartAtTwelveClockwise() {
+        let layout = WheelLayout(count: 4)
+        let top = layout.center(of: 0)
+        XCTAssertEqual(top.x, 0, accuracy: 0.001)
+        XCTAssertGreaterThan(top.y, 0)
+        let right = layout.center(of: 1)
+        XCTAssertGreaterThan(right.x, 0, "second chip should be at 3 o'clock")
+        XCTAssertEqual(right.y, 0, accuracy: 0.001)
+    }
+
+    func testHitTesting() {
+        let layout = WheelLayout(count: 6)
+        XCTAssertEqual(layout.hitTest(.zero), .hub)
+        for i in 0..<6 {
+            XCTAssertEqual(layout.hitTest(layout.center(of: i)), .chip(i))
+        }
+        XCTAssertEqual(layout.hitTest(CGPoint(x: 0, y: layout.discRadius + 50)), .none)
+    }
+
+    func testTwoRings() {
+        let layout = WheelLayout(count: 17)
+        XCTAssertEqual(layout.innerCount, 12)
+        XCTAssertEqual(layout.outerCount, 5)
+        for i in 0..<17 {
+            XCTAssertEqual(layout.hitTest(layout.center(of: i)), .chip(i), "chip \(i)")
+        }
+        XCTAssertGreaterThan(layout.outerRadius, layout.innerRadius + layout.chipRadius * 2)
+    }
+
+    func testChipsDontOverlap() {
+        for n in 1...24 {
+            let layout = WheelLayout(count: n, largeChips: true)
+            for i in 0..<n {
+                for j in (i + 1)..<n {
+                    let a = layout.center(of: i), b = layout.center(of: j)
+                    XCTAssertGreaterThanOrEqual(hypot(a.x - b.x, a.y - b.y), 2 * layout.chipRadius, "n=\(n) \(i)/\(j)")
+                }
+            }
+        }
+    }
+}

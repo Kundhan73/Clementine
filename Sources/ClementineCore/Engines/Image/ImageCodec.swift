@@ -15,6 +15,13 @@ public struct DecodedImage: @unchecked Sendable {
     /// Pixels per inch (72 if unknown).
     public var dpi: Double
 
+    public init(image: CGImage, metadata: [String: Any] = [:], hasAlpha: Bool, dpi: Double = 72) {
+        self.image = image
+        self.metadata = metadata
+        self.hasAlpha = hasAlpha
+        self.dpi = dpi
+    }
+
     public var width: Int { image.width }
     public var height: Int { image.height }
     /// Size in points for page layout.
