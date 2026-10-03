@@ -22,7 +22,8 @@ final class MediaEditE2ETests: XCTestCase {
 
     func export(_ tool: Tool, _ url: URL, _ options: ToolOptions) async throws -> URL {
         let job = Job(JobRequest(inputs: [InputItem.inspect(url)], operation: .tool(tool), options: options))
-        return try XCTUnwrap(try await engines.execute(job).outputs.first)
+        let result = try await engines.execute(job)
+        return try XCTUnwrap(result.outputs.first)
     }
 
     func make(_ name: String, _ args: [String]) async throws -> URL {
@@ -45,7 +46,8 @@ final class MediaEditE2ETests: XCTestCase {
     }
 
     func duration(_ url: URL) async throws -> Double {
-        try XCTUnwrap(try await MediaProbe.probe(url).duration)
+        let info = try await MediaProbe.probe(url)
+        return try XCTUnwrap(info.duration)
     }
 
     /// Peak level (dBFS) of `url` between two times.
@@ -83,7 +85,8 @@ final class MediaEditE2ETests: XCTestCase {
         let d = try await duration(out)
         XCTAssertGreaterThan(d, 1.8)
         XCTAssertLessThan(d, 3.2)
-        XCTAssertEqual(try await MediaProbe.probe(out).video?.codec, "mpeg4", "fast trim must not re-encode")
+        let codec = try await MediaProbe.probe(out).video?.codec
+        XCTAssertEqual(codec, "mpeg4", "fast trim must not re-encode")
     }
 
     func testPreciseTrimIsFrameExact() async throws {
@@ -95,7 +98,8 @@ final class MediaEditE2ETests: XCTestCase {
     func testAudioTrimWithFades() async throws {
         let out = try await export(.trim, try await tone(), .trim(TrimOptions(start: 0.5, end: 3.5, fadeIn: 1, fadeOut: 1)))
         XCTAssertEqual(out.pathExtension, "m4a")
-        XCTAssertEqual(try await duration(out), 3, accuracy: 0.1)
+        let length = try await duration(out)
+        XCTAssertEqual(length, 3, accuracy: 0.1)
         // Quiet at the very start (fading in), full level in the middle.
         let start = try await maxVolume(out, from: 0, length: 0.1)
         let middle = try await maxVolume(out, from: 1.4, length: 0.3)
@@ -136,7 +140,8 @@ final class MediaEditE2ETests: XCTestCase {
         XCTAssertLessThan(brightness(during, x: 60, y: 60), 20)
         XCTAssertGreaterThan(brightness(before, x: 60, y: 60) + brightness(before, x: 100, y: 30), 40,
                              "the area should be visible before the range starts")
-        XCTAssertNil(try await MediaProbe.probe(out).tags["title"])
+        let tags = try await MediaProbe.probe(out).tags
+        XCTAssertNil(tags["title"])
     }
 
     // MARK: Bleep
@@ -189,7 +194,8 @@ final class MediaEditE2ETests: XCTestCase {
         let song = try await make("covered.mp3", ["-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-i", cover.path,
                                                   "-map", "0:a", "-map", "1:v", "-c:a", "libmp3lame", "-c:v", "png",
                                                   "-disposition:v", "attached_pic", "-id3v2_version", "3"])
-        XCTAssertNotNil(try await MediaProbe.probe(song).coverArt)
+        let songInfo = try await MediaProbe.probe(song)
+        XCTAssertNotNil(songInfo.coverArt)
         let out = try await export(.visualizer, song, .visualizer(VisualizerOptions(style: .bars, background: .coverArt,
                                                                                     shape: .landscape)))
         XCTAssertEqual(out.lastPathComponent, "covered (visualizer).mp4")
@@ -210,7 +216,8 @@ final class MediaEditE2ETests: XCTestCase {
         // 1 s of silence, 2 s of tone, 1 s of silence.
         let padded = try await make("padded.wav", ["-f", "lavfi", "-i", "sine=frequency=440:duration=4:sample_rate=44100",
                                                    "-af", "volume=volume=0:enable='lt(t,1)+gt(t,3)'"])
-        XCTAssertEqual(try await duration(padded), 4, accuracy: 0.05)
+        let paddedLength = try await duration(padded)
+        XCTAssertEqual(paddedLength, 4, accuracy: 0.05)
         let silences = try await MediaAnalysis.silences(padded)
         let bounds = MediaAnalysis.trimmedBounds(duration: 4, silences: silences)
         XCTAssertEqual(bounds.start, 0.95, accuracy: 0.1)

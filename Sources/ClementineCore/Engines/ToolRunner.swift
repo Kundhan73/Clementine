@@ -368,9 +368,6 @@ enum ToolRunner {
                 try await MetadataInspector.write(first, fields: fields, to: url)
                 return nil
             }
-
-        default:
-            break
         }
         throw JobFailure("\(tool.displayName) isn't available for this file in this version yet.")
     }

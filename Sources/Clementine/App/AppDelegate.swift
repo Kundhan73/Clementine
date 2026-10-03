@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         LoginItem.applyDefaultOnFirstLaunch()
+        Updater.shared.applySchedule()
         if !Preferences.onboardingDone {
             OnboardingWindowController.shared.show()
         }

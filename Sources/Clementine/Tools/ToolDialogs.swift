@@ -551,6 +551,7 @@ struct ChannelsDialog: View {
     @AppStorage("tool.channels.mode") private var mode = ChannelOptions.Mode.mono.rawValue
     @AppStorage("tool.channels.left") private var left = 0.0
     @AppStorage("tool.channels.right") private var right = 0.0
+    @StateObject private var previewer = AudioPreviewer()
 
     var body: some View {
         DialogFrame(summary: DialogText.summary(items), action: "Apply", cancel: cancel, run: start) {
@@ -565,6 +566,25 @@ struct ChannelsDialog: View {
             .labelsHidden()
             gainRow("Left", $left)
             gainRow("Right", $right)
+            HStack {
+                Button(previewer.state == .idle ? "Preview" : previewer.state == .rendering ? "Preparing…" : "Stop") { preview() }
+                    .disabled(previewer.state == .rendering || items.count != 1)
+                Text("Plays the first 15 seconds").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .onChange(of: mode) { _, _ in previewer.stop() }
+        .onDisappear { previewer.stop() }
+    }
+
+    private func preview() {
+        if previewer.state != .idle { previewer.stop(); return }
+        guard let item = items.first else { return }
+        let options = ChannelOptions(mode: ChannelOptions.Mode(rawValue: mode) ?? .mono, leftGainDB: left, rightGainDB: right)
+        let settings = Preferences.conversionSettings()
+        previewer.play { out in
+            let excerpt = out.deletingLastPathComponent().appendingPathComponent("excerpt.wav")
+            try await MediaAnalysis.excerpt(item.url, seconds: 15, to: excerpt)
+            try await MediaTools.channels(excerpt, format: .m4a, options: options, to: out, settings: settings) { _ in }
         }
     }
 

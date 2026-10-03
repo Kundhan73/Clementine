@@ -33,6 +33,8 @@ enum SnapshotRenderer {
             windowContent("settings-general-\(suffix)", SettingsWindowController.makeView(tab: .general), appearance)
             windowContent("settings-output-\(suffix)", SettingsWindowController.makeView(tab: .output), appearance)
             windowContent("settings-quality-\(suffix)", SettingsWindowController.makeView(tab: .quality), appearance)
+            windowContent("settings-wheel-\(suffix)", SettingsWindowController.makeView(tab: .wheel), appearance)
+            windowContent("settings-about-\(suffix)", SettingsWindowController.makeView(tab: .about), appearance)
             windowContent("onboarding-\(suffix)", OnboardingWindowController.makeView(), appearance)
             dialogs(suffix: suffix, appearance: appearance)
             editors(suffix: suffix, appearance: appearance)

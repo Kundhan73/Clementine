@@ -37,7 +37,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 }
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, output, quality, advanced, about
+    case general, output, quality, wheel, advanced, about
     var id: String { rawValue }
 }
 
@@ -53,6 +53,7 @@ struct SettingsView: View {
             GeneralSettingsView().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general)
             OutputSettingsView().tabItem { Label("Output", systemImage: "folder") }.tag(SettingsTab.output)
             QualitySettingsView().tabItem { Label("Quality", systemImage: "dial.medium") }.tag(SettingsTab.quality)
+            WheelSettingsView().tabItem { Label("Wheel", systemImage: "circle.dashed") }.tag(SettingsTab.wheel)
             AdvancedSettingsView().tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }.tag(SettingsTab.advanced)
             AboutSettingsView().tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsTab.about)
         }
@@ -266,7 +267,102 @@ struct AdvancedSettingsView: View {
     }
 }
 
+/// Show, hide and reorder the wheel's chips for each kind of file.
+struct WheelSettingsView: View {
+    struct Category: Identifiable, Hashable {
+        let title: String
+        let kind: FileKind
+        let mode: WheelMode
+        var id: String { "\(mode.rawValue).\(kind.rawValue)" }
+    }
+
+    static let categories: [Category] = [
+        Category(title: "Images", kind: .image, mode: .convert),
+        Category(title: "Video", kind: .video, mode: .convert),
+        Category(title: "Audio", kind: .audio, mode: .convert),
+        Category(title: "PDF", kind: .pdf, mode: .convert),
+        Category(title: "Documents", kind: .document, mode: .convert),
+        Category(title: "Subtitles", kind: .subtitle, mode: .convert),
+        Category(title: "Archives", kind: .archive, mode: .convert),
+        Category(title: "Folders", kind: .folder, mode: .convert),
+        Category(title: "Image tools", kind: .image, mode: .tools),
+        Category(title: "Video tools", kind: .video, mode: .tools),
+        Category(title: "Audio tools", kind: .audio, mode: .tools),
+        Category(title: "PDF tools", kind: .pdf, mode: .tools),
+    ]
+
+    @State var category = WheelSettingsView.categories[0]
+    @State var hidden: Set<String> = []
+    @State var order: [String] = []
+
+    private var chips: [WheelChip] {
+        WheelContent.applyingOrder(WheelContent.catalogue(for: category.kind, mode: category.mode), order: order)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Wheel for", selection: $category) {
+                Section("Convert") {
+                    ForEach(Self.categories.filter { $0.mode == .convert }) { Text($0.title).tag($0) }
+                }
+                Section("Tools (⌥)") {
+                    ForEach(Self.categories.filter { $0.mode == .tools }) { Text($0.title).tag($0) }
+                }
+            }
+            List {
+                ForEach(chips, id: \.key) { chip in
+                    HStack(spacing: 8) {
+                        Toggle("", isOn: shown(chip)).labelsHidden().toggleStyle(.checkbox)
+                        Text(chip.title).fontWeight(.medium)
+                        Text(chip.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Spacer()
+                        Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+                    }
+                    .opacity(hidden.contains(chip.key) ? 0.55 : 1)
+                }
+                .onMove(perform: move)
+            }
+            .frame(height: 290)
+            HStack {
+                Text("Drag to reorder: the first ones sit at the top of the wheel.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Reset Wheel") {
+                    Preferences.resetWheel()
+                    load()
+                }
+            }
+        }
+        .padding(20)
+        .onAppear(perform: load)
+        .onChange(of: category) { _, _ in load() }
+    }
+
+    private func load() {
+        hidden = Set(UserDefaults.standard.stringArray(forKey: Preferences.wheelKey(PrefKey.hiddenChips, kind: category.kind,
+                                                                                      mode: category.mode)) ?? [])
+        order = Preferences.chipOrder(kind: category.kind, mode: category.mode)
+    }
+
+    private func shown(_ chip: WheelChip) -> Binding<Bool> {
+        Binding(get: { !hidden.contains(chip.key) }, set: { on in
+            if on { hidden.remove(chip.key) } else { hidden.insert(chip.key) }
+            Preferences.setHiddenChips(hidden, kind: category.kind, mode: category.mode)
+        })
+    }
+
+    private func move(_ from: IndexSet, _ to: Int) {
+        var keys = chips.map(\.key)
+        keys.move(fromOffsets: from, toOffset: to)
+        order = keys
+        Preferences.setChipOrder(keys, kind: category.kind, mode: category.mode)
+    }
+}
+
 struct AboutSettingsView: View {
+    @AppStorage(PrefKey.autoUpdateCheck) private var autoCheck = false
+
     var body: some View {
         VStack(spacing: 10) {
             Image(nsImage: NSApp.applicationIconImage)
@@ -282,6 +378,11 @@ struct AboutSettingsView: View {
                 Button("Licenses") { openLicenses() }
             }
             .padding(.top, 6)
+            Toggle("Check for updates once a day", isOn: $autoCheck)
+                .onChange(of: autoCheck) { _, _ in Updater.shared.applySchedule() }
+            Text("The only time Clementine goes online: it asks GitHub for the latest release.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(24)

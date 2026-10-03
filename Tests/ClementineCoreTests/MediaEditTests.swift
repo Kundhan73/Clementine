@@ -199,3 +199,28 @@ final class MediaEditTests: XCTestCase {
         XCTAssertEqual(MediaAnalysis.trimmedBounds(duration: 4, silences: [0...4]).start, 0)
     }
 }
+
+/// Settings → Wheel: custom order and per-kind catalogues.
+final class WheelCustomizationTests: XCTestCase {
+    func testUserOrderComesFirstAndIsStable() {
+        let chips: [WheelChip] = [.format(.jpg), .format(.png), .format(.heic), .format(.webp)]
+        let ordered = WheelContent.applyingOrder(chips, order: ["format.webp", "format.gif", "format.png"])
+        XCTAssertEqual(ordered, [.format(.webp), .format(.png), .format(.jpg), .format(.heic)])
+        XCTAssertEqual(WheelContent.applyingOrder(chips, order: []), chips)
+    }
+
+    func testCataloguesCoverEveryKind() {
+        let images = WheelContent.catalogue(for: .image, mode: .convert)
+        XCTAssertTrue(images.contains(.format(.jpg)))
+        XCTAssertTrue(images.contains(.format(.png)))
+        XCTAssertTrue(images.contains(.format(.pdf)))
+        XCTAssertEqual(Set(images).count, images.count, "no duplicates")
+        XCTAssertTrue(WheelContent.catalogue(for: .video, mode: .convert).contains(.format(.mp4)))
+        XCTAssertTrue(WheelContent.catalogue(for: .folder, mode: .convert).contains(.format(.zip)))
+        let videoTools = WheelContent.catalogue(for: .video, mode: .tools)
+        XCTAssertEqual(videoTools.first, .tool(.compress))
+        XCTAssertTrue(videoTools.contains(.tool(.join)))
+        XCTAssertTrue(WheelContent.catalogue(for: .image, mode: .tools).contains(.tool(.collage)))
+        XCTAssertTrue(WheelContent.catalogue(for: .pdf, mode: .tools).contains(.tool(.mergePDF)))
+    }
+}

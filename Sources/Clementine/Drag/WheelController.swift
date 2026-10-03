@@ -159,11 +159,12 @@ final class WheelController: NSObject, WheelViewDelegate {
 
     private func configureWheel(animated: Bool) {
         guard let container else { return }
-        let hidden = Preferences.hiddenChips
         let items = self.items
-        let chips = items.isEmpty ? [] : WheelContent.chips(for: items, mode: mode) { chip in
+        let kind = items.first?.kind ?? .other
+        let hidden = Preferences.hiddenChipKeys(kind: kind, mode: mode)
+        let chips = items.isEmpty ? [] : WheelContent.applyingOrder(WheelContent.chips(for: items, mode: mode) { chip in
             !hidden.contains(chip.key) && Engines.isAvailable(chip, for: items)
-        }
+        }, order: Preferences.chipOrder(kind: kind, mode: mode))
         container.wheel.configure(chips: chips, mode: mode, icon: icon, count: items.count,
                                   scale: Preferences.wheelSize.scale, animated: animated)
         container.layoutDisc()

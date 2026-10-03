@@ -65,6 +65,47 @@ public enum WheelContent {
         }
     }
 
+    /// Applies the user's preferred order (chip keys, from Settings → Wheel):
+    /// listed chips first in that order, the rest after in their usual order.
+    public static func applyingOrder(_ chips: [WheelChip], order: [String]) -> [WheelChip] {
+        guard !order.isEmpty else { return chips }
+        var rank: [String: Int] = [:]
+        for (i, key) in order.enumerated() where rank[key] == nil { rank[key] = i }
+        return chips.enumerated().sorted { a, b in
+            let ra = rank[a.element.key] ?? Int.max, rb = rank[b.element.key] ?? Int.max
+            return ra != rb ? ra < rb : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    /// Chips a category can show, for Settings → Wheel (every target or tool
+    /// for that kind of file, in the default order).
+    public static func catalogue(for kind: FileKind, mode: WheelMode) -> [WheelChip] {
+        switch mode {
+        case .convert:
+            let samples: [FileKind: [String]] = [
+                .image: ["png", "jpg", "heic", "webp", "gif", "svg"],
+                .audio: ["wav", "mp3", "m4a", "flac"],
+                .video: ["mov", "mp4", "mkv", "gif"],
+                .pdf: ["pdf"],
+                .document: ["docx", "txt", "rtf", "md"],
+                .subtitle: ["srt", "vtt"],
+                .archive: ["zip", "rar", "tgz"],
+                .folder: ["Folder"],
+            ]
+            var seen: [Format] = []
+            for name in samples[kind] ?? [] {
+                let item = InputItem(url: URL(fileURLWithPath: "/tmp/sample.\(name)"), isDirectory: name == "Folder")
+                guard item.kind == kind || kind == .folder else { continue }
+                for f in ConversionMatrix.allTargets(for: item) where !seen.contains(f) { seen.append(f) }
+            }
+            return seen.map(WheelChip.format)
+        case .tools:
+            var tools = toolOrder[kind] ?? []
+            for t in multiInputTools where t.kinds.contains(kind) && !tools.contains(t) { tools.append(t) }
+            return tools.map(WheelChip.tool)
+        }
+    }
+
     /// Targets valid for every item. A file that is already in a target
     /// format is skipped for that target rather than ruling the target out,
     /// so dragging a JPG and a PNG still offers "JPG" (converts the PNG).

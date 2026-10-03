@@ -8,6 +8,27 @@ import ClementineCore
 final class Updater {
     static let shared = Updater()
     private var busy = false
+    /// System-scheduled daily check (only when enabled in Settings; no timer
+    /// of ours runs while idle).
+    private var scheduler: NSBackgroundActivityScheduler?
+
+    func applySchedule() {
+        scheduler?.invalidate()
+        scheduler = nil
+        guard UserDefaults.standard.bool(forKey: PrefKey.autoUpdateCheck) else { return }
+        let activity = NSBackgroundActivityScheduler(identifier: "\(AppInfo.bundleIdentifier).update-check")
+        activity.repeats = true
+        activity.interval = 24 * 60 * 60
+        activity.tolerance = 2 * 60 * 60
+        activity.qualityOfService = .utility
+        activity.schedule { completion in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { Updater.shared.checkForUpdates(userInitiated: false) }
+                completion(.finished)
+            }
+        }
+        scheduler = activity
+    }
 
     private struct Release: Decodable {
         struct Asset: Decodable {

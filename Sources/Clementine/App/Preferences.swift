@@ -28,6 +28,7 @@ enum PrefKey {
     static let loginItemInitialized = "loginItemInitialized"
     static let onboardingDone = "onboardingDone"
     static let hiddenChips = "hiddenChips"
+    static let autoUpdateCheck = "autoUpdateCheck"
     static let recentOutputs = "recentOutputs"
 }
 
@@ -100,6 +101,37 @@ enum Preferences {
 
     static var hiddenChips: Set<String> {
         Set(defaults.stringArray(forKey: PrefKey.hiddenChips) ?? [])
+    }
+
+    // MARK: Wheel customization (per kind of file and mode)
+
+    static func wheelKey(_ base: String, kind: FileKind, mode: WheelMode) -> String {
+        "\(base).\(mode.rawValue).\(kind.rawValue)"
+    }
+
+    /// Chips hidden for this kind of file (plus any hidden everywhere).
+    static func hiddenChipKeys(kind: FileKind, mode: WheelMode) -> Set<String> {
+        hiddenChips.union(defaults.stringArray(forKey: wheelKey(PrefKey.hiddenChips, kind: kind, mode: mode)) ?? [])
+    }
+
+    static func setHiddenChips(_ keys: Set<String>, kind: FileKind, mode: WheelMode) {
+        defaults.set(keys.sorted(), forKey: wheelKey(PrefKey.hiddenChips, kind: kind, mode: mode))
+    }
+
+    static func chipOrder(kind: FileKind, mode: WheelMode) -> [String] {
+        defaults.stringArray(forKey: wheelKey("chipOrder", kind: kind, mode: mode)) ?? []
+    }
+
+    static func setChipOrder(_ keys: [String], kind: FileKind, mode: WheelMode) {
+        defaults.set(keys, forKey: wheelKey("chipOrder", kind: kind, mode: mode))
+    }
+
+    static func resetWheel() {
+        defaults.removeObject(forKey: PrefKey.hiddenChips)
+        for key in defaults.dictionaryRepresentation().keys
+        where key.hasPrefix(PrefKey.hiddenChips + ".") || key.hasPrefix("chipOrder.") {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     static var onboardingDone: Bool {

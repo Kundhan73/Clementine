@@ -683,9 +683,7 @@ struct BleepEditor: View {
     @State var selected: Int?
     @AppStorage("tool.bleep.sound") var sound: Sound = .beep
     @AppStorage("tool.bleep.frequency") var frequency = 1000.0
-    @State var previewing = false
-    @State var previewPlayer: AVAudioPlayer?
-    @State var previewDir: TempDirectory?
+    @StateObject var previewer = AudioPreviewer()
 
     init(item: InputItem, intervals: [ClosedRange<Double>] = [], close: @escaping () -> Void) {
         self.item = item
@@ -727,8 +725,10 @@ struct BleepEditor: View {
                         Text("Hz")
                     }
                 }
-                Button(previewing ? "Stop" : "Preview") { togglePreview() }
-                    .disabled(intervals.isEmpty || session.state != .ready)
+                Button(previewer.state == .idle ? "Preview" : previewer.state == .rendering ? "Preparing…" : "Stop") {
+                    togglePreview()
+                }
+                .disabled(intervals.isEmpty || session.state != .ready || previewer.state == .rendering)
             }
             .padding(.horizontal, 12)
             if !intervals.isEmpty {
@@ -784,34 +784,16 @@ struct BleepEditor: View {
     }
 
     private func togglePreview() {
-        if previewing { stopPreview(); return }
+        if previewer.state != .idle { stopPreview(); return }
         guard let first = options.merged(duration: session.duration).first else { return }
-        previewing = true
         session.pause()
-        let options = self.options, source = item.url
-        Task {
-            do {
-                let dir = try TempDirectory(prefix: "clementine-bleep")
-                let out = dir.file("preview.m4a")
-                try await MediaEditing.bleep(source, format: .m4a, options: options, to: out,
-                                             settings: Preferences.conversionSettings()) { _ in }
-                guard previewing else { dir.remove(); return }
-                let player = try AVAudioPlayer(contentsOf: out)
-                player.currentTime = max(0, first.lowerBound - 1)
-                player.play()
-                previewDir = dir
-                previewPlayer = player
-            } catch {
-                previewing = false
-            }
+        let options = self.options, source = item.url, settings = Preferences.conversionSettings()
+        previewer.play(from: first.lowerBound - 1) { out in
+            try await MediaEditing.bleep(source, format: .m4a, options: options, to: out, settings: settings) { _ in }
         }
     }
 
     private func stopPreview() {
-        previewPlayer?.stop()
-        previewPlayer = nil
-        previewDir?.remove()
-        previewDir = nil
-        previewing = false
+        previewer.stop()
     }
 }
