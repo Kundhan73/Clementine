@@ -27,7 +27,8 @@ final class CollageModel: ObservableObject {
         previewStyle.padding *= factor
         previewStyle.cornerRadius *= factor
         let images = items.compactMap { thumbnails[$0.url] }
-        scheduler.schedule({ try? Collage.render(images, style: previewStyle) }) { [weak self] in self?.rendered = $0 }
+        let finalStyle = previewStyle
+        scheduler.schedule({ try? Collage.render(images, style: finalStyle) }) { [weak self] in self?.rendered = $0 }
     }
 }
 

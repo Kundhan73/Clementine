@@ -8,13 +8,20 @@ import SwiftUI
 @MainActor
 enum ToolUI {
     static let dialogTools: Set<Tool> = [.compress, .resize, .rotate, .createPDF, .speed, .split, .join,
-                                         .extractAudio, .normalize, .channels]
+                                         .extractAudio, .normalize, .channels, .visualizer]
     static let editorTools: Set<Tool> = [.crop, .adjust, .annotate, .redact, .background, .collage,
-                                         .metadata, .organizePDF]
+                                         .metadata, .organizePDF, .trim, .snapshot, .bleep]
+    /// Tools with a player-based editor for a single video or audio file.
+    static let mediaEditorTools: Set<Tool> = [.trim, .crop, .redact, .split, .snapshot, .bleep]
 
     static func handles(_ tool: Tool) -> Bool { dialogTools.contains(tool) || editorTools.contains(tool) }
 
     static func open(_ tool: Tool, items: [InputItem]) {
+        if items.count == 1, let first = items.first, first.kind == .video || first.kind == .audio,
+           mediaEditorTools.contains(tool) {
+            if !openMediaEditor(tool, item: first) { NSSound.beep() }
+            return
+        }
         if editorTools.contains(tool) {
             if !openEditor(tool, items: items) { NSSound.beep() }
             return
@@ -41,6 +48,7 @@ enum ToolUI {
         case .extractAudio: return AnyView(ExtractAudioDialog(items: items, run: run, cancel: cancel))
         case .normalize: return AnyView(NormalizeDialog(items: items, run: run, cancel: cancel))
         case .channels: return AnyView(ChannelsDialog(items: items, run: run, cancel: cancel))
+        case .visualizer: return AnyView(VisualizerDialog(items: items, run: run, cancel: cancel))
         default: return AnyView(EmptyView())
         }
     }

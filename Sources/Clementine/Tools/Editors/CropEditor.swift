@@ -203,7 +203,8 @@ struct CropEditor: View {
         Binding(get: { Int(crop[keyPath: key].rounded()) }, set: { v in
             var r = crop
             r[keyPath: key] = CGFloat(max(0, v))
-            crop = r.intersection(CGRect(origin: .zero, size: preview.fullSize))
+            let clipped = r.intersection(CGRect(origin: .zero, size: preview.fullSize))
+            if !clipped.isNull, clipped.width >= 1, clipped.height >= 1 { crop = clipped }
         })
     }
 }

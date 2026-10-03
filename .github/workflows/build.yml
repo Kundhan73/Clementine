@@ -134,6 +134,11 @@ jobs:
           plutil -p "$app/Contents/Info.plist" | head -40
       - name: Self-test (footprint, smoke job)
         run: scripts/ci/step.sh selftest build/app/Clementine.app/Contents/MacOS/Clementine --self-test
+      - name: Media editor snapshots (need ffmpeg)
+        run: |
+          scripts/ci/step.sh media-snapshots build/app/Clementine.app/Contents/MacOS/Clementine \
+            --render-snapshots build/snapshots-media --only media
+          gh release upload ci-snapshots build/snapshots-media/*.png --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: Clementine

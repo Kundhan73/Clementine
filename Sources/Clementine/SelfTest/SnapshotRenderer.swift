@@ -12,12 +12,19 @@ enum SnapshotRenderer {
     private static var failures = 0
     private static var directory = URL(fileURLWithPath: "snapshots")
 
-    static func run(into dir: URL) -> Int32 {
+    static func run(into dir: URL, media: Bool = false) -> Int32 {
         directory = dir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         Preferences.registerDefaults()
         let appearances: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
 
+        if media {
+            for (suffix, name) in appearances {
+                mediaEditors(suffix: suffix, appearance: NSAppearance(named: name)!)
+            }
+            print("snapshots: \(failures) failure(s)")
+            return failures == 0 ? 0 : 1
+        }
         for (suffix, name) in appearances {
             let appearance = NSAppearance(named: name)!
             menuBarIcon(suffix: suffix, appearance: appearance)
@@ -136,7 +143,7 @@ enum SnapshotRenderer {
             (.compress, ["photo.jpg"]), (.resize, ["photo.jpg"]), (.rotate, ["photo.jpg"]),
             (.createPDF, ["a.jpg", "b.png", "c.pdf"]), (.speed, ["clip.mov"]), (.split, ["report.pdf"]),
             (.join, ["one.mp4", "two.mp4"]), (.extractAudio, ["clip.mov"]), (.normalize, ["podcast.mp3"]),
-            (.channels, ["song.wav"]),
+            (.channels, ["song.wav"]), (.visualizer, ["song.mp3"]),
         ]
         for (tool, files) in cases {
             let view = ToolUI.dialog(for: tool, items: sampleItems(files), run: { _, _ in }, cancel: {})
@@ -208,6 +215,58 @@ enum SnapshotRenderer {
         host("collage", CollageEditor(items: samples.photos, close: {}), size: NSSize(width: 1000, height: 700))
         host("metadata", MetadataEditor(item: samples.photo, close: {}), size: NSSize(width: 720, height: 620))
         host("organize", OrganizePDFEditor(item: samples.pdf, close: {}))
+    }
+
+    // MARK: Media editors (bundle with ffmpeg)
+
+    private static var mediaSamples: (video: InputItem, audio: InputItem)?
+
+    /// Runs the bundled ffmpeg synchronously (sample files only).
+    private static func ffmpeg(_ args: [String]) -> Bool {
+        guard let tool = FFmpegLocator.ffmpeg else { return false }
+        let process = Process()
+        process.executableURL = tool
+        process.arguments = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y"] + args
+        guard (try? process.run()) != nil else { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+
+    private static func makeMediaSamples() -> (video: InputItem, audio: InputItem)? {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clementine-snapshot-media")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let video = dir.appendingPathComponent("Holiday.mp4"), audio = dir.appendingPathComponent("Interview.m4a")
+        let source = ["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=12",
+                      "-f", "lavfi", "-i", "sine=frequency=330:duration=12", "-shortest", "-c:a", "aac_at", "-b:a", "128k"]
+        guard ffmpeg(source + ["-c:v", "h264_videotoolbox", "-b:v", "4M", "-allow_sw", "1", "-pix_fmt", "yuv420p", video.path])
+            || ffmpeg(source + ["-c:v", "mpeg4", "-q:v", "3", video.path]) else { return nil }
+        guard ffmpeg(["-f", "lavfi", "-i", "sine=frequency=220:duration=40", "-af",
+                      "volume='0.08+0.7*abs(sin(t*0.9))*abs(sin(t*3.1))':eval=frame", "-c:a", "aac_at", "-b:a", "128k",
+                      audio.path]) else { return nil }
+        return (InputItem.inspect(video), InputItem.inspect(audio))
+    }
+
+    private static func mediaEditors(suffix: String, appearance: NSAppearance) {
+        if mediaSamples == nil { mediaSamples = makeMediaSamples() }
+        guard let samples = mediaSamples else {
+            print("snapshot: FAILED media samples (is ffmpeg in the bundle?)")
+            failures += 1
+            return
+        }
+        func host<V: View>(_ name: String, _ view: V, size: NSSize) {
+            windowContent("media-\(name)-\(suffix)", NSHostingView(rootView: view), appearance, size: size, settle: 3)
+        }
+        let videoSize = NSSize(width: 980, height: 720), audioSize = NSSize(width: 900, height: 520)
+        host("trim-video", TrimEditor(item: samples.video, close: {}), size: videoSize)
+        host("trim-audio", TrimEditor(item: samples.audio, close: {}), size: audioSize)
+        host("crop-video", VideoCropEditor(item: samples.video, close: {}), size: videoSize)
+        host("split-audio", SplitMediaEditor(item: samples.audio, markers: [9.5, 21, 30.25], close: {}), size: audioSize)
+        host("snapshot", SnapshotEditor(item: samples.video, close: {}), size: videoSize)
+        var box = Redaction(rect: CGRect(x: 760, y: 120, width: 360, height: 220), style: .pixelate)
+        box.start = 2
+        box.end = 9
+        host("redact-video", VideoRedactEditor(item: samples.video, regions: [box], close: {}), size: videoSize)
+        host("bleep", BleepEditor(item: samples.audio, intervals: [4.2...5.1, 17...18.6], close: {}), size: audioSize)
     }
 
     /// A simple landscape: sky gradient, sun, two hills.

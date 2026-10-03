@@ -235,6 +235,73 @@ enum ToolRunner {
                 return nil
             }
 
+        // Media editors (0.5).
+        case .crop where first.kind == .video:
+            guard case .crop(let rect) = request.options else { throw JobFailure("Choose the area to keep.") }
+            let format = videoOutput(first.format)
+            return try await single(format: format) { url in
+                try await MediaEditing.cropVideo(first.url, format: format, rect: rect, to: url, settings: settings,
+                                                 progress: report)
+                return nil
+            }
+
+        case .redact where first.kind == .video:
+            guard case .redact(let regions) = request.options else { throw JobFailure("Draw at least one area to hide.") }
+            let format = videoOutput(first.format)
+            return try await single(format: format) { url in
+                try await MediaEditing.redactVideo(first.url, format: format, regions: regions, to: url, settings: settings,
+                                                   progress: report)
+                return nil
+            }
+
+        case .trim:
+            guard case .trim(let options) = request.options else { throw JobFailure("Choose the part to keep.") }
+            let format = first.kind == .video ? videoOutput(first.format) : audioOutput(first.format)
+            return try await single(format: format) { url in
+                try await MediaEditing.trim(first.url, format: format, options: options, to: url, settings: settings,
+                                            progress: report)
+                return nil
+            }
+
+        case .snapshot:
+            guard case .snapshot(let requested) = request.options else { throw JobFailure("Choose a frame to save.") }
+            let info = try await MediaProbe.probe(first.url)
+            guard info.hasVideo else { throw JobFailure("This file has no video.") }
+            var clamped = max(0, requested)
+            if let d = info.duration, d > 0 { clamped = min(clamped, max(0, d - 1 / max(1, info.video?.frameRate ?? 25))) }
+            let time = clamped
+            let base = MediaEditing.snapshotName(base: OutputNamer.baseName(of: first.url), time: time)
+            return try await engines.withOutput(for: first, base: base, extension: "png", request: request) { url in
+                try await MediaEditing.snapshot(first.url, at: time, to: url)
+            }
+
+        case .bleep:
+            guard case .bleep(let options) = request.options else { throw JobFailure("Mark at least one part to bleep.") }
+            let format = first.kind == .video ? videoOutput(first.format) : audioOutput(first.format)
+            return try await single(format: format) { url in
+                try await MediaEditing.bleep(first.url, format: format, options: options, to: url, settings: settings,
+                                             progress: report)
+                return nil
+            }
+
+        case .visualizer:
+            let options: VisualizerOptions
+            if case .visualizer(let o) = request.options { options = o } else { options = VisualizerOptions() }
+            return try await single(format: .mp4) { url in
+                let info = try await MediaProbe.probe(first.url)
+                guard info.hasAudio, let duration = info.duration, duration > 0 else {
+                    throw JobFailure("This file has no sound to visualise.")
+                }
+                let tmp = try TempDirectory(prefix: "clementine-visualizer")
+                defer { tmp.remove() }
+                let art = try await VisualizerArt.prepare(first.url, info: info, options: options, in: tmp.url)
+                report(0.02)
+                try await MediaEditing.visualize(audio: first.url, background: art.background, overlay: art.overlay,
+                                                 options: options, duration: duration, workDirectory: tmp.url, to: url,
+                                                 settings: settings) { report(0.02 + 0.98 * $0) }
+                return nil
+            }
+
         case .crop, .adjust, .annotate, .redact, .background:
             guard first.kind == .image else { break }
             let format = tool == .background ? .png : ImageTools.toolOutputFormat(for: first.format)

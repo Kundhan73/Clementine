@@ -57,6 +57,13 @@ public enum ToolOptions: Sendable {
     case collage(CollageStyle)
     case organizePDF([PageRef])
     case metadata(EditableMetadata)
+    /// Media editors. Video crop and redact reuse `.crop` / `.redact`
+    /// (display-oriented pixels; redactions may carry a time range).
+    case trim(TrimOptions)
+    /// Save the frame shown at this time (seconds) as a PNG.
+    case snapshot(Double)
+    case bleep(BleepOptions)
+    case visualizer(VisualizerOptions)
     case custom([String: String])
 }
 

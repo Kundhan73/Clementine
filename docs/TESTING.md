@@ -28,6 +28,41 @@ On first launch a welcome window explains the gesture.
    Choose **ZIP** to put them all into one `Archive.zip`.
 8. Practice file: the welcome window has a picture you can shift-drag.
 
+## Tools (0.3): hold ⇧ Shift + ⌥ Option while dragging
+1. **Compress** a big photo: pick **Email** or type an exact size (for example
+   2 MB). The copy is named "… (compressed)" and should be just under the
+   size you asked for. Try a video and a PDF too.
+2. **Resize** a photo to 50 %, and a video to 720p.
+3. **Rotate** a JPG or an iPhone video 90°: the copy should look turned, with
+   no visible quality loss.
+4. **Create PDF** from a few photos (you can reorder them first), then
+   **Merge PDF** two PDFs, then **Split** the result by pages (for example
+   `1-2, 3`).
+5. Video: **Mute**, **Extract Audio**, **Speed** (2×), **Split** into parts,
+   **Join** two clips.
+6. Audio: **Normalize** a quiet recording, **Channels** → Mono.
+
+## Editors (0.4): ⇧⌥-drag a photo or PDF, then pick
+- **Crop**: drag the corners or the whole box; try the 1:1 and 16:9 buttons;
+  ⏎ saves "… (cropped)".
+- **Adjust**: move the sliders; hold **Show Original** to compare;
+  double-click a slider's name to reset it.
+- **Annotate**: arrows, boxes, pen, highlighter, text, numbered markers.
+  ⌘Z undoes. Select a drawing to move it; Delete removes it.
+- **Redact**: drag over something to hide it; try **Find Faces**, **Find
+  Text**, or type a word and press Return. The saved copy has no metadata.
+- **Background**: pick a colour or gradient; try **Remove the photo's
+  background** on a photo of a person or pet.
+- **Collage** (drag 2 or more photos): grid, row, column, featured; drag the
+  list to reorder.
+- **Metadata**: browse everything stored in the file; edit the title or
+  author and **Save Copy**.
+- **Organize** (a PDF): drag pages around, rotate, delete, insert other PDFs
+  or images, then **Save**.
+
+Each editor saves a new file next to the original; the original is never
+changed. Esc or Cancel closes without saving.
+
 ## Other ways in
 - Drop files on the menu-bar icon: the wheel appears; click a format.
 - Menu-bar icon → **Convert Files…** → pick files → click a format.

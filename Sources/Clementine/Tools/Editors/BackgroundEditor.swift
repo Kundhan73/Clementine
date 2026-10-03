@@ -79,7 +79,8 @@ struct BackgroundEditor: View {
                                     .onTapGesture { model.style.fill = entry.1 }
                             }
                         }
-                        Toggle("Remove the photo's background", isOn: $model.style.removeBackground)
+                        Toggle("Cut out the subject", isOn: $model.style.removeBackground)
+                            .help("Removes the photo's own background (people, pets, objects)")
                         if let error = model.error { Text(error).font(.footnote).foregroundStyle(.red) }
                     }
                     Section("Frame") {

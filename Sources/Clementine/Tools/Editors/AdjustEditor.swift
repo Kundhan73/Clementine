@@ -48,22 +48,26 @@ struct AdjustEditor: View {
                 }
                 .background(Color.black.opacity(0.85))
                 Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(AdjustParameters.fields.enumerated()), id: \.offset) { _, field in
-                            AdjustSlider(title: field.title, range: field.range,
-                                         value: Binding(get: { model.params[keyPath: field.key] },
-                                                        set: { model.params[keyPath: field.key] = $0 }))
-                        }
-                        HStack {
-                            Button("Reset All") { model.params = AdjustParameters() }
-                                .disabled(model.params.isIdentity)
-                            Spacer()
-                            HoldButton(title: "Show Original", pressed: $model.showOriginal)
-                        }
-                        .padding(.top, 6)
+                VStack(spacing: 0) {
+                    HStack {
+                        HoldButton(title: "Show Original", pressed: $model.showOriginal)
+                        Spacer()
+                        Button("Reset All") { model.params = AdjustParameters() }
+                            .disabled(model.params.isIdentity)
                     }
-                    .padding(14)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    Divider()
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(AdjustParameters.fields.enumerated()), id: \.offset) { _, field in
+                                AdjustSlider(title: field.title, range: field.range,
+                                             value: Binding(get: { model.params[keyPath: field.key] },
+                                                            set: { model.params[keyPath: field.key] = $0 }))
+                            }
+                        }
+                        .padding(14)
+                    }
                 }
                 .frame(width: 270)
             }
