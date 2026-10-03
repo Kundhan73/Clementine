@@ -7,21 +7,15 @@ import Foundation
 import Vision
 #endif
 
-/// A colour that can be stored in documents and settings.
-public struct RGBA: Codable, Equatable, Hashable, Sendable {
-    public var r: Double, g: Double, b: Double, a: Double
-    public init(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) {
-        self.r = r; self.g = g; self.b = b; self.a = a
-    }
-    public var cgColor: CGColor { CGColor(srgbRed: r, green: g, blue: b, alpha: a) }
-    public var nsColor: NSColor { NSColor(srgbRed: r, green: g, blue: b, alpha: a) }
-    public init(_ color: NSColor) {
+
+/// AppKit/Core Graphics conveniences for the neutral colour type.
+public extension RGBA {
+    var cgColor: CGColor { CGColor(srgbRed: r, green: g, blue: b, alpha: a) }
+    var nsColor: NSColor { NSColor(srgbRed: r, green: g, blue: b, alpha: a) }
+    init(_ color: NSColor) {
         let c = color.usingColorSpace(.sRGB) ?? .black
         self.init(Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent), Double(c.alphaComponent))
     }
-    public static let white = RGBA(1, 1, 1), black = RGBA(0, 0, 0), red = RGBA(0.93, 0.2, 0.17)
-    public static let orange = RGBA(0.96, 0.5, 0.1), yellow = RGBA(1, 0.85, 0.1), blue = RGBA(0.1, 0.45, 0.95)
-    public static let green = RGBA(0.2, 0.7, 0.3)
 }
 
 // MARK: Crop
@@ -48,28 +42,10 @@ public enum ImageCrop {
 
 // MARK: Annotate
 
-/// One drawing on top of an image. Coordinates are pixels, top-left origin.
-public struct Annotation: Codable, Identifiable, Equatable, Sendable {
-    public enum Kind: String, Codable, Sendable, CaseIterable { case pen, highlighter, line, arrow, rectangle, ellipse, text, marker }
-    public var id = UUID()
-    public var kind: Kind
-    public var points: [CGPoint]
-    public var color: RGBA
-    public var lineWidth: Double
-    public var filled = false
-    public var text = ""
-    public var fontSize: Double = 32
-    public var number = 1
 
-    public init(kind: Kind, points: [CGPoint], color: RGBA, lineWidth: Double) {
-        self.kind = kind
-        self.points = points
-        self.color = color
-        self.lineWidth = lineWidth
-    }
-
+public extension Annotation {
     /// Bounding box (for selection and hit-testing).
-    public var bounds: CGRect {
+    var bounds: CGRect {
         guard let first = points.first else { return .null }
         var r = CGRect(origin: first, size: .zero)
         for p in points { r = r.union(CGRect(origin: p, size: .zero)) }
@@ -84,8 +60,6 @@ public struct Annotation: Codable, Identifiable, Equatable, Sendable {
             return r.insetBy(dx: -lineWidth, dy: -lineWidth)
         }
     }
-
-    public var markerDiameter: Double { max(28, fontSize * 1.3) }
 }
 
 public enum AnnotationRenderer {
@@ -132,7 +106,7 @@ public enum AnnotationRenderer {
                 var shaftEnd = end
                 if a.kind == .arrow {
                     let angle = atan2(end.y - start.y, end.x - start.x)
-                    let head = max(12, a.lineWidth * 4)
+                    let head = CGFloat(max(12, a.lineWidth * 4))
                     shaftEnd = CGPoint(x: end.x - cos(angle) * head * 0.6, y: end.y - sin(angle) * head * 0.6)
                     ctx.move(to: end)
                     ctx.addLine(to: CGPoint(x: end.x - cos(angle - 0.45) * head, y: end.y - sin(angle - 0.45) * head))
@@ -181,22 +155,6 @@ public enum AnnotationRenderer {
 
 // MARK: Redact
 
-/// An area to hide. `rect` in pixels, top-left origin.
-public struct Redaction: Codable, Identifiable, Equatable, Sendable {
-    public enum Style: String, Codable, Sendable, CaseIterable { case solid, blur, pixelate }
-    public var id = UUID()
-    public var rect: CGRect
-    public var style: Style
-    public var color: RGBA = .black
-    /// Video only: visible from…to seconds (nil = whole clip).
-    public var start: Double?
-    public var end: Double?
-
-    public init(rect: CGRect, style: Style) {
-        self.rect = rect
-        self.style = style
-    }
-}
 
 public enum Redactor {
     /// Destructively hides the regions (blur also pixelates first, so it
@@ -301,36 +259,6 @@ public enum Redactor {
 
 // MARK: Background / frame
 
-public struct FrameStyle: Codable, Equatable, Sendable {
-    public enum Aspect: String, Codable, Sendable, CaseIterable {
-        case original, square, portrait4x5, landscape16x9, story9x16, photo3x2
-        public var ratio: CGFloat? {
-            switch self {
-            case .original: return nil
-            case .square: return 1
-            case .portrait4x5: return 4.0 / 5.0
-            case .landscape16x9: return 16.0 / 9.0
-            case .story9x16: return 9.0 / 16.0
-            case .photo3x2: return 3.0 / 2.0
-            }
-        }
-    }
-    public enum Fill: Codable, Equatable, Sendable {
-        case none
-        case solid(RGBA)
-        case gradient(RGBA, RGBA)
-        case blurredSelf
-    }
-    /// Padding as a fraction of the image's longer side.
-    public var padding: Double = 0.08
-    /// Corner radius as a fraction of the image's shorter side.
-    public var cornerRadius: Double = 0.04
-    public var shadow: Double = 0.5
-    public var aspect: Aspect = .original
-    public var fill: Fill = .gradient(RGBA(1.0, 0.62, 0.25), RGBA(0.93, 0.33, 0.45))
-    public var removeBackground = false
-    public init() {}
-}
 
 public enum Framer {
     public static func render(_ image: CGImage, style: FrameStyle) throws -> CGImage {
@@ -418,16 +346,6 @@ public enum Framer {
 
 // MARK: Collage
 
-public struct CollageStyle: Codable, Equatable, Sendable {
-    public enum Layout: String, Codable, Sendable, CaseIterable { case grid, row, column, featured }
-    public var layout: Layout = .grid
-    public var spacing: Double = 12
-    public var padding: Double = 24
-    public var cornerRadius: Double = 10
-    public var background: RGBA = .white
-    public var outputWidth: Int = 2400
-    public init() {}
-}
 
 public enum Collage {
     /// Cell rects (top-left origin) for `count` images of the given sizes.

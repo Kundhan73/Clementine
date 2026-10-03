@@ -1,5 +1,9 @@
 #if canImport(ImageIO)
+import CoreGraphics
 import Foundation
+#if canImport(PDFKit)
+import PDFKit
+#endif
 
 extension JobResult {
     func adding(note extra: String?) -> JobResult {
@@ -228,6 +232,73 @@ enum ToolRunner {
             return try await single(suffix: label, format: format) { url in
                 try await MediaTools.channels(first.url, format: format, options: options, to: url, settings: settings,
                                               progress: report)
+                return nil
+            }
+
+        case .crop, .adjust, .annotate, .redact, .background:
+            guard first.kind == .image else { break }
+            let format = tool == .background ? .png : ImageTools.toolOutputFormat(for: first.format)
+            let options = request.options
+            return try await single(format: format) { url in
+                var decoded = try ImageCodec.decode(first.url, format: first.format)
+                report(0.3)
+                var keepMetadata = settings.keepMetadata
+                switch options {
+                case .crop(let rect): decoded.image = try ImageCrop.crop(decoded.image, to: rect)
+                case .adjust(let p): decoded.image = try ImageAdjuster.render(p, image: decoded.image)
+                case .annotate(let a): decoded.image = try AnnotationRenderer.render(decoded.image, annotations: a)
+                case .redact(let r):
+                    decoded.image = try Redactor.render(decoded.image, redactions: r)
+                    keepMetadata = false
+                case .background(let style):
+                    decoded.image = try Framer.render(decoded.image, style: style)
+                    decoded.hasAlpha = true
+                default:
+                    throw JobFailure("Nothing to save.")
+                }
+                report(0.8)
+                try await ImageCodec.encode(decoded, as: format, to: url, settings: settings,
+                                            quality: format == .jpg || format == .heic ? 0.95 : nil,
+                                            keepMetadata: keepMetadata)
+                return nil
+            }
+
+        case .collage:
+            guard case .collage(let style) = request.options else { throw JobFailure("Choose a collage layout.") }
+            return try await engines.withOutput(for: first, base: "Collage", extension: "png", request: request) { url in
+                var images: [CGImage] = []
+                for (i, item) in request.inputs.enumerated() {
+                    // Collage cells are small: decode downsized to save memory.
+                    images.append(try ImageCodec.decode(item.url, format: item.format).image)
+                    report(Double(i + 1) / Double(request.inputs.count) * 0.7)
+                }
+                let image = try Collage.render(images, style: style)
+                try ImageCodec.write(image, as: .png, to: url)
+            }
+
+        case .organizePDF:
+            guard case .organizePDF(let pages) = request.options else { throw JobFailure("Nothing to save.") }
+            return try await single(format: .pdf) { url in
+                let tmp = try TempDirectory(prefix: "clementine-organize")
+                defer { tmp.remove() }
+                var sources: [PDFDocument] = []
+                for (i, item) in request.inputs.enumerated() {
+                    if item.kind == .pdf {
+                        sources.append(try PDFEngine.open(item.url))
+                    } else {
+                        let page = tmp.file("insert-\(i).pdf")
+                        try PDFTools.merge([item], to: page)
+                        sources.append(try PDFEngine.open(page))
+                    }
+                }
+                try PDFOrganizer.write(sources: sources, pages: pages, to: url)
+                return nil
+            }
+
+        case .metadata:
+            guard case .metadata(let fields) = request.options else { throw JobFailure("Nothing to save.") }
+            return try await single(suffix: "edited", format: sameFormat) { url in
+                try await MetadataInspector.write(first, fields: fields, to: url)
                 return nil
             }
 

@@ -39,6 +39,14 @@ public struct Engines: JobExecuting {
         .mute: [.video],
         .extractAudio: [.video],
         .channels: [.audio],
+        .crop: [.image],
+        .adjust: [.image],
+        .annotate: [.image],
+        .redact: [.image],
+        .background: [.image],
+        .collage: [.image],
+        .organizePDF: [.pdf],
+        .metadata: [.image, .audio, .video, .pdf, .document],
     ]
     static let implementedArchiveTargets: Set<Format> = [.zip, .tar, .tgz, .gz]
 

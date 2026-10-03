@@ -48,6 +48,15 @@ public enum ToolOptions: Sendable {
     case normalize(NormalizeOptions)
     case extractAudio(Format)
     case channels(ChannelOptions)
+    /// Editors (image): crop rect in pixels, top-left origin.
+    case crop(CGRect)
+    case adjust(AdjustParameters)
+    case annotate([Annotation])
+    case redact([Redaction])
+    case background(FrameStyle)
+    case collage(CollageStyle)
+    case organizePDF([PageRef])
+    case metadata(EditableMetadata)
     case custom([String: String])
 }
 

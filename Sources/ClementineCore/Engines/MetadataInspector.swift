@@ -18,15 +18,6 @@ public struct MetadataEntry: Identifiable, Hashable, Sendable {
     }
 }
 
-/// Fields the inspector can edit (saved as a copy).
-public struct EditableMetadata: Equatable, Sendable {
-    public var title = ""
-    public var author = ""
-    public var comment = ""
-    public var copyright = ""
-
-    public init() {}
-}
 
 /// Reads metadata of any supported file and writes edited copies.
 public enum MetadataInspector {
@@ -211,22 +202,6 @@ public enum MetadataInspector {
     }
 }
 
-/// Page operations for Organize PDF.
-public struct PageRef: Identifiable, Hashable, Sendable {
-    public var id = UUID()
-    /// Index into the source documents.
-    public var source: Int
-    /// 0-based page index in that source.
-    public var page: Int
-    /// Extra rotation in degrees (multiples of 90).
-    public var rotation: Int
-
-    public init(source: Int, page: Int, rotation: Int = 0) {
-        self.source = source
-        self.page = page
-        self.rotation = rotation
-    }
-}
 
 public enum PDFOrganizer {
     /// Writes the pages in the given order (with rotations) into a new PDF.

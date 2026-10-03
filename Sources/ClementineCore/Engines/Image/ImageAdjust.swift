@@ -3,37 +3,6 @@ import CoreGraphics
 import CoreImage
 import Foundation
 
-/// Slider values for the Adjust editor. 0 means "unchanged" for every field.
-public struct AdjustParameters: Codable, Equatable, Sendable {
-    public var exposure: Double = 0       // −2…2 EV
-    public var brightness: Double = 0     // −1…1
-    public var contrast: Double = 0       // −1…1
-    public var highlights: Double = 0     // −1…1
-    public var shadows: Double = 0        // −1…1
-    public var saturation: Double = 0     // −1…1
-    public var vibrance: Double = 0       // −1…1
-    public var warmth: Double = 0         // −1…1
-    public var tint: Double = 0           // −1…1
-    public var sharpness: Double = 0      // 0…1
-    public var clarity: Double = 0        // 0…1
-    public var dehaze: Double = 0         // 0…1
-    public var grain: Double = 0          // 0…1
-    public var noiseReduction: Double = 0 // 0…1
-    public var vignette: Double = 0       // 0…1
-
-    public init() {}
-
-    public var isIdentity: Bool { self == AdjustParameters() }
-
-    /// Field names and ranges for building the editor UI.
-    public static let fields: [(key: WritableKeyPath<AdjustParameters, Double>, title: String, range: ClosedRange<Double>)] = [
-        (\.exposure, "Exposure", -2...2), (\.brightness, "Brightness", -1...1), (\.contrast, "Contrast", -1...1),
-        (\.highlights, "Highlights", -1...1), (\.shadows, "Shadows", -1...1), (\.saturation, "Saturation", -1...1),
-        (\.vibrance, "Vibrance", -1...1), (\.warmth, "Warmth", -1...1), (\.tint, "Tint", -1...1),
-        (\.sharpness, "Sharpness", 0...1), (\.clarity, "Clarity", 0...1), (\.dehaze, "Dehaze", 0...1),
-        (\.grain, "Grain", 0...1), (\.noiseReduction, "Noise Reduction", 0...1), (\.vignette, "Vignette", 0...1),
-    ]
-}
 
 /// Applies `AdjustParameters` with Core Image.
 public enum ImageAdjuster {
