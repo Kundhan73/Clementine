@@ -1,0 +1,135 @@
+name: build
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg:
+    name: ffmpeg (cached)
+    runs-on: macos-15
+    timeout-minutes: 150
+    outputs:
+      key: ${{ steps.key.outputs.key }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: key
+        run: echo "key=ffmpeg-arm64-${{ hashFiles('scripts/build-ffmpeg.sh') }}" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: build/ffmpeg-dist
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+      - name: Build tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          command -v pkg-config || command -v pkgconf || brew install pkgconf
+          command -v cmake || brew install cmake
+      - name: Build or fetch ffmpeg
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: scripts/ci/step.sh ffmpeg scripts/ci/ffmpeg.sh "${{ steps.key.outputs.key }}"
+      - name: Report failure
+        if: failure()
+        run: scripts/ci/report-failure.sh ffmpeg
+
+  build:
+    needs: ffmpeg
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FFMPEG_DIST: ${{ github.workspace }}/build/ffmpeg-dist
+      CLEMENTINE_FFMPEG: ${{ github.workspace }}/build/ffmpeg-dist/bin/ffmpeg
+      CLEMENTINE_FFPROBE: ${{ github.workspace }}/build/ffmpeg-dist/bin/ffprobe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: build/ffmpeg-dist
+          key: ${{ needs.ffmpeg.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          cat build/ffmpeg-dist/BUILDINFO.txt
+      - name: Compile
+        run: |
+          echo "::add-matcher::.github/swift-problem-matcher.json"
+          scripts/ci/step.sh compile swift build -c release
+      - name: Unit and end-to-end tests
+        run: |
+          echo "::add-matcher::.github/swift-problem-matcher.json"
+          scripts/ci/step.sh test swift test -c release
+      - name: Bundle, sign, zip
+        env:
+          REQUIRE_FFMPEG: '1'
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/ci/step.sh bundle scripts/make-app.sh
+      - name: Verify bundle
+        run: |
+          app=build/app/Clementine.app
+          codesign --verify --deep --strict --verbose=2 "$app"
+          for b in "$app/Contents/MacOS/Clementine" "$app/Contents/Helpers/ffmpeg" "$app/Contents/Helpers/ffprobe"; do
+            otool -L "$b"
+            bad="$(otool -L "$b" | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)"
+            [ -z "$bad" ] || { echo "::error::$b links non-system libraries: $bad"; exit 1; }
+            lipo -archs "$b"
+          done
+          plutil -p "$app/Contents/Info.plist" | head -40
+      - name: Self-test (footprint, smoke job)
+        run: scripts/ci/step.sh selftest build/app/Clementine.app/Contents/MacOS/Clementine --self-test
+      - name: Render UI snapshots
+        run: scripts/ci/step.sh snapshots build/app/Clementine.app/Contents/MacOS/Clementine --render-snapshots build/snapshots
+      - name: Publish snapshots (ci-snapshots pre-release)
+        run: |
+          ls build/snapshots
+          if ! gh release view ci-snapshots >/dev/null 2>&1; then
+            gh release create ci-snapshots --prerelease --title "CI snapshots" \
+              --notes "Offscreen UI renders from CI, for review. Not an app release."
+          fi
+          gh release upload ci-snapshots build/snapshots/*.png --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Clementine
+          path: build/app/Clementine.zip
+          retention-days: 7
+      - name: Report failure
+        if: failure()
+        run: scripts/ci/report-failure.sh build
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Clementine
+          path: dist
+      - name: Release v$(VERSION) if new
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if gh release view "v$v" >/dev/null 2>&1; then
+            echo "v$v already released"; exit 0
+          fi
+          awk -v v="$v" '$0 ~ "^## " {p = ($2 == v)} p' CHANGELOG.md > notes.md || true
+          [ -s notes.md ] || echo "Clementine $v" > notes.md
+          printf '\n\nInstall or update:\n\n```bash\ncurl -fsSL https://raw.githubusercontent.com/Kundhan73/Clementine/main/scripts/install.sh | bash\n```\n' >> notes.md
+          gh release create "v$v" dist/Clementine.zip --title "Clementine $v" --notes-file notes.md --target "$GITHUB_SHA" --latest
