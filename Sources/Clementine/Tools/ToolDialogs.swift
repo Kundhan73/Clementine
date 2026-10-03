@@ -3,16 +3,22 @@ import ClementineCore
 import ImageIO
 import SwiftUI
 
-/// Opens dialogs for tools that take options. Tools not handled here run
-/// instantly with defaults.
+/// Opens dialogs and editors for tools that take options. Tools not handled
+/// here run instantly with defaults.
 @MainActor
 enum ToolUI {
     static let dialogTools: Set<Tool> = [.compress, .resize, .rotate, .createPDF, .speed, .split, .join,
                                          .extractAudio, .normalize, .channels]
+    static let editorTools: Set<Tool> = [.crop, .adjust, .annotate, .redact, .background, .collage,
+                                         .metadata, .organizePDF]
 
-    static func handles(_ tool: Tool) -> Bool { dialogTools.contains(tool) }
+    static func handles(_ tool: Tool) -> Bool { dialogTools.contains(tool) || editorTools.contains(tool) }
 
     static func open(_ tool: Tool, items: [InputItem]) {
+        if editorTools.contains(tool) {
+            if !openEditor(tool, items: items) { NSSound.beep() }
+            return
+        }
         let run: (ToolOptions, [InputItem]) -> Void = { options, ordered in
             ToolDialogController.shared.close()
             JobCenter.shared.submit(JobCenter.requests(for: .tool(tool), items: ordered, outputDirectory: nil, options: options))

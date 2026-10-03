@@ -1,5 +1,7 @@
 import AppKit
 import ClementineCore
+import CoreText
+import ImageIO
 import SwiftUI
 
 /// `--render-snapshots <dir>`: renders UI pieces offscreen to PNG files so
@@ -26,6 +28,7 @@ enum SnapshotRenderer {
             windowContent("settings-quality-\(suffix)", SettingsWindowController.makeView(tab: .quality), appearance)
             windowContent("onboarding-\(suffix)", OnboardingWindowController.makeView(), appearance)
             dialogs(suffix: suffix, appearance: appearance)
+            editors(suffix: suffix, appearance: appearance)
         }
         if let icon = NSApp.applicationIconImage {
             save("app-icon", image: icon, size: NSSize(width: 256, height: 256))
@@ -141,9 +144,144 @@ enum SnapshotRenderer {
         }
     }
 
+    // MARK: Editors
+
+    private struct Samples {
+        let photo: InputItem
+        let photos: [InputItem]
+        let pdf: InputItem
+    }
+
+    private static var samples: Samples?
+
+    /// Sample files for the editors, generated once per run.
+    private static func makeSamples() -> Samples? {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clementine-snapshot-samples")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let skies: [(CGFloat, CGFloat, CGFloat)] = [(0.98, 0.62, 0.3), (0.35, 0.62, 0.95), (0.45, 0.8, 0.55), (0.85, 0.45, 0.8)]
+        var photos: [InputItem] = []
+        for (i, sky) in skies.enumerated() {
+            let size = i == 2 ? CGSize(width: 900, height: 1200) : CGSize(width: 1600, height: 1066)
+            let url = dir.appendingPathComponent("Sample \(i + 1).jpg")
+            guard writeSamplePhoto(to: url, size: size, sky: sky) else { return nil }
+            photos.append(InputItem.inspect(url))
+        }
+        let pdf = dir.appendingPathComponent("Sample.pdf")
+        guard writeSamplePDF(to: pdf, pages: 6) else { return nil }
+        return Samples(photo: photos[0], photos: photos, pdf: InputItem.inspect(pdf))
+    }
+
+    private static func editors(suffix: String, appearance: NSAppearance) {
+        if samples == nil { samples = makeSamples() }
+        guard let samples, let preview = PreviewLoader.load(samples.photo) else {
+            print("snapshot: FAILED editor samples")
+            failures += 1
+            return
+        }
+        let full = preview.fullSize
+        func host<V: View>(_ name: String, _ view: V, size: NSSize? = nil) {
+            windowContent("editor-\(name)-\(suffix)", NSHostingView(rootView: view), appearance,
+                          size: size ?? NSSize(width: 980, height: 680), settle: 1.0)
+        }
+        host("crop", CropEditor(item: samples.photo, preview: preview, close: {}))
+        host("adjust", AdjustEditor(item: samples.photo, preview: preview, close: {}))
+
+        let arrow = Annotation(kind: .arrow, points: [CGPoint(x: full.width * 0.2, y: full.height * 0.75),
+                                                      CGPoint(x: full.width * 0.45, y: full.height * 0.45)],
+                               color: .red, lineWidth: 10)
+        let box = Annotation(kind: .rectangle, points: [CGPoint(x: full.width * 0.55, y: full.height * 0.2),
+                                                        CGPoint(x: full.width * 0.85, y: full.height * 0.45)],
+                             color: .yellow, lineWidth: 8)
+        var label = Annotation(kind: .text, points: [CGPoint(x: full.width * 0.08, y: full.height * 0.08)], color: .white, lineWidth: 6)
+        label.text = "Look here"
+        label.fontSize = 72
+        var marker = Annotation(kind: .marker, points: [CGPoint(x: full.width * 0.7, y: full.height * 0.7)], color: .blue, lineWidth: 6)
+        marker.fontSize = 48
+        host("annotate", AnnotateEditor(item: samples.photo, preview: preview, annotations: [arrow, box, label, marker], close: {}))
+
+        let regions = [
+            Redaction(rect: CGRect(x: full.width * 0.1, y: full.height * 0.15, width: full.width * 0.3, height: full.height * 0.25), style: .blur),
+            Redaction(rect: CGRect(x: full.width * 0.6, y: full.height * 0.6, width: full.width * 0.25, height: full.height * 0.2), style: .pixelate),
+        ]
+        host("redact", RedactEditor(item: samples.photo, preview: preview, regions: regions, close: {}))
+        host("background", BackgroundEditor(item: samples.photo, preview: preview, close: {}))
+        host("collage", CollageEditor(items: samples.photos, close: {}), size: NSSize(width: 1000, height: 700))
+        host("metadata", MetadataEditor(item: samples.photo, close: {}), size: NSSize(width: 720, height: 620))
+        host("organize", OrganizePDFEditor(item: samples.pdf, close: {}))
+    }
+
+    /// A simple landscape: sky gradient, sun, two hills.
+    private static func writeSamplePhoto(to url: URL, size: CGSize, sky: (CGFloat, CGFloat, CGFloat)) -> Bool {
+        let w = Int(size.width), h = Int(size.height)
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return false }
+        let colors = [CGColor(srgbRed: sky.0, green: sky.1, blue: sky.2, alpha: 1),
+                      CGColor(srgbRed: 1, green: 0.93, blue: 0.8, alpha: 1)] as CFArray
+        if let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) {
+            ctx.drawLinearGradient(gradient, start: CGPoint(x: 0, y: size.height), end: CGPoint(x: 0, y: size.height * 0.3), options: [])
+        }
+        ctx.setFillColor(CGColor(srgbRed: 1, green: 0.85, blue: 0.35, alpha: 1))
+        ctx.fillEllipse(in: CGRect(x: size.width * 0.66, y: size.height * 0.6, width: size.width * 0.14, height: size.width * 0.14))
+        for (i, shade) in [(0.3, 0.55, 0.32), (0.2, 0.42, 0.25)].enumerated() {
+            ctx.setFillColor(CGColor(srgbRed: shade.0, green: shade.1, blue: shade.2, alpha: 1))
+            let path = CGMutablePath()
+            let base = size.height * (i == 0 ? 0.42 : 0.3)
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: base))
+            path.addCurve(to: CGPoint(x: size.width, y: base * 0.8),
+                          control1: CGPoint(x: size.width * (i == 0 ? 0.3 : 0.5), y: base * 1.6),
+                          control2: CGPoint(x: size.width * 0.7, y: base * 0.4))
+            path.addLine(to: CGPoint(x: size.width, y: 0))
+            path.closeSubpath()
+            ctx.addPath(path)
+            ctx.fillPath()
+        }
+        guard let image = ctx.makeImage(),
+              let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.jpeg" as CFString, 1, nil) else { return false }
+        let props: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: 0.85,
+            kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFMake: "Clementine", kCGImagePropertyTIFFModel: "Sample Camera",
+                                             kCGImagePropertyTIFFArtist: "Sample Artist"],
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifDateTimeOriginal: "2026:05:01 09:30:00",
+                                             kCGImagePropertyExifLensModel: "Sample Lens 24mm f/2",
+                                             kCGImagePropertyExifISOSpeedRatings: [100]],
+        ]
+        CGImageDestinationAddImage(dest, image, props as CFDictionary)
+        return CGImageDestinationFinalize(dest)
+    }
+
+    /// A short PDF whose pages carry big page numbers.
+    private static func writeSamplePDF(to url: URL, pages: Int) -> Bool {
+        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let ctx = CGContext(url as CFURL, mediaBox: &box, nil) else { return false }
+        let palette: [NSColor] = [.systemOrange, .systemBlue, .systemGreen, .systemPurple, .systemPink, .systemTeal]
+        for page in 0..<pages {
+            ctx.beginPDFPage(nil)
+            ctx.setFillColor(palette[page % palette.count].withAlphaComponent(0.18).cgColor)
+            ctx.fill(CGRect(x: 0, y: 640, width: 612, height: 152))
+            ctx.setFillColor(NSColor(white: 0.75, alpha: 1).cgColor)
+            for line in 0..<14 {
+                ctx.fill(CGRect(x: 60, y: 560 - CGFloat(line) * 30, width: line % 4 == 3 ? 300 : 492, height: 10))
+            }
+            let text = NSAttributedString(string: "\(page + 1)", attributes: [
+                .font: NSFont.systemFont(ofSize: 96, weight: .bold),
+                .foregroundColor: palette[page % palette.count],
+            ])
+            let line = CTLineCreateWithAttributedString(text)
+            ctx.textPosition = CGPoint(x: 60, y: 670)
+            CTLineDraw(line, ctx)
+            ctx.endPDFPage()
+        }
+        ctx.closePDF()
+        return true
+    }
+
     /// Hosts a view in a real (briefly visible) window so AppKit and SwiftUI
-    /// lay it out and draw it, then captures it.
-    private static func windowContent(_ name: String, _ view: NSView, _ appearance: NSAppearance) {
+    /// lay it out and draw it, then captures it. Views that size themselves
+    /// to their window (editors) pass a fixed `size`.
+    private static func windowContent(_ name: String, _ view: NSView, _ appearance: NSAppearance,
+                                      size fixedSize: NSSize? = nil, settle: TimeInterval = 0.4) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.borderless],
                               backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -151,14 +289,14 @@ enum SnapshotRenderer {
         window.backgroundColor = .windowBackgroundColor
         window.contentView = view
         view.layoutSubtreeIfNeeded()
-        var size = view.fittingSize
+        var size = fixedSize ?? view.fittingSize
         if size.width < 10 || size.height < 10 { size = NSSize(width: 500, height: 400) }
         window.setContentSize(size)
         if let screen = NSScreen.main?.visibleFrame {
             window.setFrameOrigin(NSPoint(x: screen.minX + 20, y: screen.maxY - size.height - 20))
         }
         window.orderFrontRegardless()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        RunLoop.main.run(until: Date().addingTimeInterval(settle))
         view.layoutSubtreeIfNeeded()
         view.display()
 

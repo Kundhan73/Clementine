@@ -297,7 +297,8 @@ public enum Framer {
             }
         }
         let rect = CGRect(x: (cw - iw) / 2, y: (ch - ih) / 2, width: iw, height: ih)
-        let radius = CGFloat(style.cornerRadius) * min(iw, ih)
+        // Core Graphics traps on radii above half the side.
+        let radius = max(0, min(CGFloat(style.cornerRadius) * min(iw, ih), min(iw, ih) / 2 - 0.5))
         let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         if style.shadow > 0 && !style.removeBackground {
             ctx.saveGState()
@@ -352,8 +353,11 @@ public enum Collage {
     public static func cells(for sizes: [CGSize], style: CollageStyle) -> (canvas: CGSize, cells: [CGRect]) {
         let n = sizes.count
         guard n > 0 else { return (.zero, []) }
-        let W = CGFloat(max(200, style.outputWidth)), p = CGFloat(style.padding), s = CGFloat(style.spacing)
+        let W = CGFloat(max(200, style.outputWidth))
+        // Keep margins and gaps from eating the whole canvas with many images.
+        let p = min(max(0, CGFloat(style.padding)), W / 4)
         let inner = W - 2 * p
+        let s = min(max(0, CGFloat(style.spacing)), inner / CGFloat(2 * max(1, n - 1)))
         switch style.layout {
         case .row:
             // Same height, widths follow the aspect ratios.
@@ -385,8 +389,9 @@ public enum Collage {
             if n == 1 { return cells(for: sizes, style: { var c = style; c.layout = .grid; return c }()) }
             let bigW = (inner - s) * 2 / 3, sideW = inner - s - bigW
             let others = n - 1
-            let sideH = (bigW * 3 / 4 - s * CGFloat(others - 1)) / CGFloat(others)
-            let height = max(bigW * 3 / 4, CGFloat(others) * min(sideH, sideW) + s * CGFloat(others - 1))
+            // Side cells are at least half as tall as they are wide; the
+            // collage grows taller rather than squashing them.
+            let height = max(bigW * 3 / 4, CGFloat(others) * sideW / 2 + s * CGFloat(others - 1))
             var cells = [CGRect(x: p, y: p, width: bigW, height: height)]
             let h = (height - s * CGFloat(others - 1)) / CGFloat(others)
             for i in 0..<others {
@@ -411,8 +416,9 @@ public enum Collage {
         for (image, cellTL) in zip(images, cells) {
             // Top-left → bottom-left.
             let cell = CGRect(x: cellTL.minX, y: CGFloat(h) - cellTL.maxY, width: cellTL.width, height: cellTL.height)
+            guard cell.width >= 1, cell.height >= 1 else { continue }
             ctx.saveGState()
-            let r = min(CGFloat(style.cornerRadius), min(cell.width, cell.height) / 2)
+            let r = max(0, min(CGFloat(style.cornerRadius), min(cell.width, cell.height) / 2 - 0.5))
             ctx.addPath(CGPath(roundedRect: cell, cornerWidth: r, cornerHeight: r, transform: nil))
             ctx.clip()
             // Aspect fill.
