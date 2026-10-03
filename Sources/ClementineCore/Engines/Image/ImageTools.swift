@@ -15,9 +15,13 @@ public enum ImageTools {
         guard let format = item.format, let source = CGImageSourceCreateWithURL(item.url as CFURL, nil) else {
             throw JobFailure("This image can't be opened.")
         }
+        if format == .jpg, let data = try? Data(contentsOf: item.url), let stripped = JPEGMetadata.strip(data) {
+            try stripped.write(to: output)
+            if !hasIdentifyingMetadata(output) { return }
+        }
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] ?? [:]
         let orientation = (props[kCGImagePropertyOrientation as String] as? NSNumber)?.intValue ?? 1
-        if [.jpg, .png, .tiff, .heic].contains(format), let type = CGImageSourceGetType(source),
+        if [.png, .tiff, .heic].contains(format), let type = CGImageSourceGetType(source),
            let dest = CGImageDestinationCreateWithURL(output as CFURL, type, 1, nil) {
             let metadata = CGImageMetadataCreateMutable()
             if orientation != 1 {
@@ -84,6 +88,15 @@ public enum ImageTools {
     /// lossless formats).
     public static func rotate(_ item: InputItem, options: RotateOptions, to output: URL, format: Format,
                               settings: ConversionSettings) async throws {
+        if format == item.format, format == .jpg, let data = try? Data(contentsOf: item.url),
+           let current = JPEGOrientation.read(data) {
+            let new = ExifOrientation.compose(current, turn: options.turn, flipHorizontal: options.flipHorizontal,
+                                              flipVertical: options.flipVertical)
+            if let patched = JPEGOrientation.set(data, orientation: new) {
+                try patched.write(to: output)
+                return
+            }
+        }
         if format == item.format, format == .jpg || format == .heic,
            let source = CGImageSourceCreateWithURL(item.url as CFURL, nil), let type = CGImageSourceGetType(source),
            let dest = CGImageDestinationCreateWithURL(output as CFURL, type, 1, nil) {

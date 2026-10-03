@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/Kundhan73/Clementine/main/scripts/i
 | 0.0 Build pipeline (GitHub Actions → Releases) | ✅ done |
 | 0.1 Shift-drag wheel + image conversions | ✅ done |
 | 0.2 All conversions (audio, video, documents, subtitles, archives) | ✅ done (v0.2.0) |
-| 0.3 Instant and dialog tools | ⏳ |
+| 0.3 Instant and dialog tools | ✅ done (v0.3.0) |
 | 0.4 Image and PDF editors | ⏳ |
 | 0.5 Media editors | ⏳ |
 | 1.0 Polish and performance | ⏳ |
